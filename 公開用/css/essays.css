@@ -1,0 +1,67 @@
+/* ==========================================================================
+   essays.css — 考察ビュー（配置・固有部品のみ。共通部品は theme.css）
+   ========================================================================== */
+
+.essay-section-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:14px;
+}
+.essay-section-head .section-title{ margin-bottom:0; border-bottom:none; padding-bottom:0; }
+
+/* 考察ノート一覧（カードグリッド） */
+.essay-list-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+  gap:12px;
+}
+.essay-list-item{ cursor:pointer; }
+.essay-list-item:active{ background:var(--card); }
+.essay-list-item--active{
+  outline:2px solid var(--accent-soft);
+  outline-offset:1px;
+}
+.essay-list-title{ font-weight:700; font-size:14px; margin-bottom:4px; }
+.essay-list-meta{
+  font-size:11px;
+  color:var(--ink-soft);
+  margin-bottom:8px;
+}
+
+/* エディタ本文は考察メモ用に十分な高さを確保する */
+.essay-body-textarea{ min-height:220px; }
+
+/* 根拠(evidence)欄 */
+.essay-evidence-block{ margin-top:20px; }
+.essay-evidence-item{ align-items:flex-start; }
+.essay-evidence-body{ flex:1; font-size:12.5px; }
+.essay-evidence-note{
+  font-size:11.5px;
+  color:var(--ink-soft);
+}
+
+/* 根拠の追加フォーム：場面/一節の2列（375px幅では1列に落とす） */
+.essay-evidence-add{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px dashed var(--rule);
+}
+.essay-evidence-add-col{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+@media (max-width:600px){
+  .essay-evidence-add{ grid-template-columns:1fr; }
+}
+
+/* 横断検索：結果の下に集計を積む縦積みレイアウト（375px幅でも横スクロール無し） */
+.cross-summary{ margin-top:14px; }
+.cross-result-row{ cursor:pointer; }
+.cross-result-row:active{ background:var(--card); }

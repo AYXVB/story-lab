@@ -1,0 +1,156 @@
+/* ==========================================================================
+   library.css — 書庫ビュー（作品一覧・登録・絞り込み）専用の配置
+   「なぜ」:色・チップ・カード・ボタン等の意匠は theme.css の共通部品に任せ、
+   ここには「書庫だけに要る配置・固有部品」しか書かない（意匠の二重定義を防ぐ）。
+   ========================================================================== */
+
+/* --- 題名＋案内所ボタンの行（375px幅では縦積みに折れる） --- */
+.lf-title-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.lf-title-row .input{ flex:1 1 200px; }
+.lf-guide-status{ font-size:0.85em; color:var(--accent); margin-top:4px; min-height:1.2em; }
+
+/* --- 作品カードのタグチップ（クリックでタグ辞典の説明へ飛ぶボタン） --- */
+.work-card__tags{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.work-card__tagbtn{
+  /* ボタンの標準見た目を消し、中のチップだけ見せる（タップ完結・ホバー非依存） */
+  background:none; border:none; padding:0; margin:0; cursor:pointer;
+}
+
+/* --- 絞り込みバー：ラベル＋セレクトを横並び、375px幅では折り返す --- */
+.lib-filters{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-end;
+  gap:10px 14px;
+  margin-bottom:18px;
+}
+.lib-filters .field{
+  margin-bottom:0;          /* バー内では下マージンを殺して高さを揃える */
+  min-width:130px;
+}
+.lib-filters .lib-filter-spacer{ flex:1 1 auto; } /* 件数表示を右に押す */
+.lib-count{
+  font-size:11px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  white-space:nowrap;
+  padding-bottom:8px;
+}
+
+/* --- 索引カードのグリッド：画面幅に応じて自動段組み、375pxでは1列 --- */
+.lib-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(260px, 1fr));
+  gap:16px;
+}
+
+/* --- 作品カード（索引カード風・クリックで分解へ）--- */
+.work-card{
+  cursor:pointer;             /* カード全体が分解ビューへの入口 */
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.work-card:active{ transform:translateY(1px); } /* タップの手応え（ホバー非依存）*/
+.work-card .work-card__head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:8px;
+}
+.work-card .work-card__title{
+  font-size:16px;
+  font-weight:700;
+  line-height:1.4;
+}
+.work-card .work-card__meta{
+  font-size:12px;
+  color:var(--ink-soft);
+}
+.work-card .work-card__axes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:2px;
+}
+/* 構造軸チップ（タグとは別物：分類軸なので落ち着いた枠線バッジ）*/
+.axis-chip{
+  display:inline-block;
+  font-size:10.5px;
+  letter-spacing:.05em;
+  color:var(--ink-soft);
+  border:1px solid var(--rule);
+  background:var(--paper-2);
+  border-radius:2px;
+  padding:2px 7px;
+  white-space:nowrap;
+}
+.work-card .work-card__foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  margin-top:auto;            /* 場面数・操作を下端へ */
+  padding-top:8px;
+  border-top:1px dashed var(--rule);
+  font-size:11px;
+  color:var(--ink-soft);
+}
+.work-card .work-card__actions{
+  display:flex;
+  gap:6px;
+}
+
+/* 「自作」スタンプ（朱の枠・回転で判子らしさ）*/
+.own-stamp{
+  display:inline-block;
+  font-size:10px;
+  letter-spacing:.1em;
+  color:var(--accent);
+  border:1.5px solid var(--accent);
+  border-radius:3px;
+  padding:1px 6px;
+  transform:rotate(-4deg);
+}
+
+/* --- 空状態（作品0件）--- */
+.lib-empty{
+  text-align:center;
+  color:var(--ink-soft);
+  border:1px dashed var(--rule-strong);
+  background:var(--paper-2);
+  padding:40px 20px;
+}
+.lib-empty p{ margin:0 0 14px; font-size:14px; }
+
+/* --- 登録/編集フォーム --- */
+.lib-form{
+  max-width:640px;
+}
+/* 軸セレクト3つは横並び（狭ければ折り返す）*/
+.lib-form .axis-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.lib-form .axis-row .field{ flex:1 1 150px; margin-bottom:0; }
+.lib-form .form-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:6px;
+}
+/* isOwn チェック行（ラベルを右に）*/
+.lib-check{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+  color:var(--ink);
+  margin-bottom:12px;
+}
+.lib-check input{ width:16px; height:16px; }
+
+@media (max-width:600px){
+  .lib-grid{ grid-template-columns:1fr; }
+}

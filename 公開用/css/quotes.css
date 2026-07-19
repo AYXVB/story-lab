@@ -1,0 +1,94 @@
+/* ==========================================================================
+   quotes.css — 一節ビュー固有スタイル
+   共通部品は theme.css を使い、ここは配置と固有部品のみ。
+   接頭辞 qt- でこのビュー専用のクラスと明示する（他ビューCSSとの衝突防止）。
+   ========================================================================== */
+
+/* --- ツールバー（絞り込み＋新規/取り込みボタン） --- */
+.qt-toolbar-card{ margin-bottom:16px; padding:14px 16px; }
+.qt-filter-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:10px;
+}
+.qt-filter-row > *{ flex:1 1 160px; min-width:120px; }
+.qt-action-row{ display:flex; flex-wrap:wrap; gap:8px; }
+
+/* --- 追加・編集フォーム / 取り込みフォーム 共通 --- */
+.qt-form-card, .qt-import-card{ margin-bottom:18px; padding:18px 20px; max-width:640px; }
+.qt-form-tag-section{ margin:14px 0; padding-top:10px; border-top:1px dashed var(--rule); }
+.qt-tag-add-row{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.qt-tag-add-row .select{ width:auto; min-width:110px; }
+.qt-tag-wrap{ display:inline-flex; align-items:center; gap:2px; }
+.qt-tag-remove{
+  border:none;
+  background:none;
+  color:var(--ink-soft);
+  cursor:pointer;
+  font-size:12px;
+  padding:0 2px;
+  line-height:1;
+}
+.qt-tag-remove:hover{ color:var(--accent); }
+.qt-form-buttons{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+.qt-empty{ font-size:12.5px; color:var(--ink-soft); }
+
+/* --- 取り込み下書き一覧 --- */
+.qt-import-hint{ font-size:12px; color:var(--ink-soft); margin:6px 0 10px; }
+.qt-import-drafts{ margin-top:14px; border-top:1px dashed var(--rule-strong); padding-top:10px; }
+.qt-import-draft-row{
+  display:grid;
+  grid-template-columns: 1fr 1fr 2fr auto;
+  gap:6px;
+  align-items:start;
+  margin-bottom:8px;
+  padding-bottom:8px;
+  border-bottom:1px solid var(--rule);
+}
+@media (max-width:700px){
+  .qt-import-draft-row{ grid-template-columns: 1fr 1fr; }
+  .qt-import-draft-row .qt-imp-text{ grid-column: 1 / -1; }
+  .qt-import-draft-row .qt-imp-remove{ grid-column: 1 / -1; justify-self:end; }
+}
+.qt-imp-text{ min-height:44px; }
+
+/* --- 一節カード一覧 --- */
+.qt-cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px,1fr));
+  gap:16px;
+}
+.qt-card{ padding:16px 18px; }
+.qt-why{
+  font-size:13px;
+  color:var(--ink);
+  margin:0 0 12px;
+  padding-left:10px;
+  border-left:2px solid var(--rule-strong);
+}
+.qt-card-tags{ margin-bottom:10px; }
+.qt-card-foot{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding-top:8px;
+  border-top:1px dashed var(--rule);
+}
+.qt-card-actions{ display:flex; gap:4px; }
+.qt-icon-btn{
+  font-family:var(--font-serif);
+  font-size:11px;
+  color:var(--ink-soft);
+  background:none;
+  border:1px solid var(--rule);
+  border-radius:2px;
+  padding:1px 6px;
+  cursor:pointer;
+  line-height:1.6;
+}
+.qt-icon-btn:hover{ background:var(--paper-2); color:var(--ink); }
+
+.qt-empty{ font-size:13px; color:var(--ink-soft); padding:20px 0; }
