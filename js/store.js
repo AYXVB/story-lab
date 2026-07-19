@@ -46,6 +46,7 @@
       essays: [],
       quotes: [],
       elements: [],   // 人物・設定資料（作品ごとの登場人物/場所/用語等。§5拡張2026-07-18）
+      snapshots: [],  // 原稿の版履歴（場面ごとの書き直し前の控え。§5拡張2026-07-19）
       axisDefs: defaultAxisDefs(),
       settings: {}
     };
@@ -55,7 +56,7 @@
   function normalize(obj){
     var base = emptyData();
     if (!obj || typeof obj !== "object") return base;
-    ["works","nodes","tags","essays","quotes","elements"].forEach(function(k){
+    ["works","nodes","tags","essays","quotes","elements","snapshots"].forEach(function(k){
       if (Array.isArray(obj[k])) base[k] = obj[k];
     });
     if (obj.axisDefs && typeof obj.axisDefs === "object"){
@@ -300,8 +301,9 @@
         data.quotes.forEach(function(q){
           if (q.workId === id){ q.workId = null; q.nodeId = null; }
         });
-        // その作品の人物・設定資料も一緒に削除（孤児を残さない）
+        // その作品の人物・設定資料・版履歴も一緒に削除（孤児を残さない）
         data.elements = data.elements.filter(function(el){ return el.workId !== id; });
+        data.snapshots = data.snapshots.filter(function(s){ return s.workId !== id; });
       } else if (coll === "nodes"){
         // ノード削除 → 子孫ノードも削除（親を消して孤児を残さない）
         var doomed = {}; doomed[id] = true;
@@ -319,6 +321,8 @@
         data.quotes.forEach(function(q){
           if (q.nodeId && doomed[q.nodeId]) q.nodeId = null;
         });
+        // 消えた場面の版履歴も一緒に削除
+        data.snapshots = data.snapshots.filter(function(s){ return !doomed[s.nodeId]; });
       } else if (coll === "tags"){
         // タグ削除 → 全コレクションの tagIds から除去
         // （works=作品全体の構成タグ、elements=人物造形の技法タグ等も対象）

@@ -24,8 +24,15 @@
   var st = {
     workId: null,   // 選択中の自作品
     nodeId: null,   // 選択中の場面（編集対象）
-    mode: "edit"    // "edit"=執筆 / "read"=読み返し / "board"=俯瞰（カード計画）
+    mode: "edit",   // "edit"=執筆 / "read"=読み返し / "board"=俯瞰（カード計画）
+    vertical: false,  // 読み返しの縦書きトグル（新人賞応募＝縦書きで確かめる実務）
+    checkOpen: false, // 推敲チェック結果パネルの開閉（renderMain 再構築でも保持）
+    snapOpen: false   // 「版の一覧」<details> の開閉（再描画で閉じ戻らないよう記憶）
   };
+
+  // 版履歴の上限（設計 §5）。超えたら古い順に間引く。「書き直す前の安全網」で
+  // あって完全な履歴ではない、をデータ量の暴走防止と両立させるための上限。
+  var SNAP_MAX = 30;
 
   // 集中執筆モードの状態。body に "focus-mode" を付けている間だけ非null。
   // Esc の keydown ハンドラを解除するために参照を保持する（リーク防止）。
@@ -140,6 +147,129 @@
   // 目標が有効な数値なら返す（null=未設定 / 0以下は未設定扱い）
   function goalOf(work){
     return (typeof work.goalChars === "number" && work.goalChars > 0) ? work.goalChars : null;
+  }
+
+  /* ------------------------------------------------------------------
+     版履歴（スナップショット・設計 §5）— 書き直す前の安全網
+     「なぜ手動か」: 自動で毎回残すと30版がすぐ埋まり、本当に残したい
+     「書き直す直前の形」が流れてしまう。残す瞬間は書き手が決める。
+     ------------------------------------------------------------------ */
+  // 場面の版を新しい順に返す（一覧表示用）
+  function snapshotsOfNode(nodeId){
+    return App.store.find("snapshots", function(s){ return s.nodeId === nodeId; })
+      .slice()
+      .sort(function(a, b){ return (b.createdAt || 0) - (a.createdAt || 0); });
+  }
+  /* エディタ textarea の未保存分（debounce 500ms 待ちの入力）を確定させる。
+     版を残す/戻す前に必ず呼ぶ＝「見えている原稿」と「保存済み原稿」のずれを
+     無くしてから控える（ずれたまま控えると安全網が古い原稿を守ってしまう）。 */
+  function flushEditorText(nodeId){
+    var ta = rootEl && rootEl.querySelector("#ww-fulltext");
+    if (ta && ta.getAttribute("data-node-id") === nodeId){
+      App.store.update("nodes", nodeId, { fullText: ta.value });
+    }
+  }
+  /* 版を1件追加し、上限 SNAP_MAX を超えた分を古い順に間引く。
+     add は store が save 済み（契約）。remove も同様。 */
+  function addSnapshot(nodeId, text, label){
+    var node = App.store.byId("nodes", nodeId);
+    App.store.add("snapshots", {
+      workId: node ? node.workId : st.workId,
+      nodeId: nodeId,
+      text: text,
+      chars: text.length,
+      label: label || ""
+    });
+    var snaps = App.store.find("snapshots", function(s){ return s.nodeId === nodeId; })
+      .slice()
+      .sort(function(a, b){ return (a.createdAt || 0) - (b.createdAt || 0); }); // 古い順
+    while (snaps.length > SNAP_MAX){
+      App.store.remove("snapshots", snaps.shift().id);
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     ルビ記法 → <ruby> 変換（読み返し表示専用）
+     記法: 「｜親文字《るび》」または「漢字《るび》」（｜無しは直前の
+     連続する漢字を親文字とする＝小説投稿サイトの標準記法に合わせる）。
+     ⚠ XSS安全の順序（厳守）: 先に全体を esc() でエスケープし、
+     「エスケープ済み文字列」の上で記法を検出して ruby タグに置換する。
+     挿入するのは自前の固定タグと、既にエスケープ済みの捕獲文字列だけ
+     ＝ユーザー入力が生HTMLとして通る経路を作らない。
+     （｜《》は非ASCIIなので esc() で変化せず、エスケープ後も検出できる）
+     ------------------------------------------------------------------ */
+  function rubyHtml(rawText){
+    var escaped = App.util.esc(rawText || "");
+    // ｜あり: ｜の直後から《まで何でも親文字にできる（ひらがな等もルビ可）
+    // ｜なし: 《 の直前に連続する漢字（々〆ヶ・CJK統合漢字）だけを親文字にする
+    return escaped.replace(
+      /(?:｜([^《》｜\n]+)|([々〆ヶ〻㐀-䶿一-鿿]+))《([^《》\n]+)》/g,
+      function(m, piped, kanji, rt){
+        var base = piped || kanji;
+        return '<ruby>' + base + '<rt>' + rt + '</rt></ruby>';
+      }
+    );
+  }
+
+  /* ------------------------------------------------------------------
+     推敲チェック（読み返しモード）— 文末の単調・段落頭の重複のみ検査
+     「なぜ2項目だけか」: 表記ゆれ等の高度な検査は誤検出が多く、
+     機械の指摘を信じすぎる害の方が大きい（研究の道具の思想）。
+     検出できる範囲を正直に絞り、結果パネルにもその旨を明記する。
+     ------------------------------------------------------------------ */
+  /* 会話文（「」内）を除いた地の文を文単位に割る。
+     会話文を除くのは「〜だ。」等のセリフ口調が文末チェックの誤検出源になるため。 */
+  function splitSentences(text){
+    var noDialog = (text || "").replace(/「[^」]*」/g, "");
+    // 「。！？」の連続＋直後の閉じ括弧までを1文とする（簡易。字下げ等は無視）
+    return noDialog.match(/[^。！？]*[。！？]+[」）』]*/g) || [];
+  }
+  // 文末2文字（句読点・閉じ括弧・空白を除いた末尾2字）。2字未満なら null
+  function sentenceEnding(sentence){
+    var body = sentence.replace(/[。！？\s]+$/g, "").replace(/[」）』]+$/g, "").replace(/[。！？\s]+$/g, "");
+    if (body.length < 2) return null;
+    return body.slice(-2);
+  }
+  /* 作品全体（場面順）を走査して指摘リストを作る。
+     返り値: { endings:[{scene,count,ending}], heads:[{scene,count,head}] } */
+  function runProofCheck(work){
+    var result = { endings: [], heads: [] };
+    scenesInOrder(work.id).forEach(function(e){
+      var sceneName = e.scene.title || "（無題の場面）";
+      var text = e.scene.fullText || "";
+
+      // a) 文末の単調: 同一文末2文字が3文連続以上
+      var ends = splitSentences(text).map(sentenceEnding);
+      var run = 1;
+      for (var i = 1; i <= ends.length; i++){
+        if (i < ends.length && ends[i] !== null && ends[i] === ends[i - 1]){
+          run++;
+        } else {
+          if (run >= 3 && ends[i - 1] !== null){
+            result.endings.push({ scene: sceneName, count: run, ending: ends[i - 1] });
+          }
+          run = 1;
+        }
+      }
+
+      // b) 段落頭の重複: 連続する（空行を挟まない実質の）段落の書き出し2文字が同じ
+      var heads = text.split(/\n/)
+        .map(function(p){ return p.replace(/^[\s　]+/, ""); }) // 字下げ（全角空白含む）を除いて比べる
+        .filter(function(p){ return p.length >= 2; })
+        .map(function(p){ return p.slice(0, 2); });
+      var hrun = 1;
+      for (var j = 1; j <= heads.length; j++){
+        if (j < heads.length && heads[j] === heads[j - 1]){
+          hrun++;
+        } else {
+          if (hrun >= 2){
+            result.heads.push({ scene: sceneName, count: hrun, head: heads[j - 1] });
+          }
+          hrun = 1;
+        }
+      }
+    });
+    return result;
   }
 
   /* ------------------------------------------------------------------
@@ -563,6 +693,11 @@
     html += '</div>';
     html += '<div class="overline" id="ww-charcount">' + String((node.fullText || "").length) + ' 文字</div>';
 
+    // ルビ記法の案内（変換は読み返しモードでのみ行う＝エディタは生記法のまま）
+    html += '<p class="ww-ruby-hint">ルビは ｜漢字《かんじ》 と書く（｜は省略可・読み返しで表示されます）</p>';
+
+    html += renderSnapshotSection(node);
+
     // 後から章に整理したくなった時のため「章へ移動」を用意（順序を強制しない）。
     // 選択肢は作品内の章/部＋「作品直下」。章がまだ無ければ出さない。
     var chapters = containerNodes(work.id);
@@ -630,6 +765,45 @@
     return html;
   }
 
+  /* --- 版履歴セクション（エディタ内・設計 §5）--- */
+  function renderSnapshotSection(node){
+    var snaps = snapshotsOfNode(node.id);
+    var html = '<div class="ww-snap-section">';
+    html += '<div class="ww-snap-head">';
+    // 「◎ 版を残す」＝書き直す前に現在形を控える（安全網の入口）
+    html += '<button type="button" class="btn btn--ghost btn--sm ww-snap-save" data-node-id="' + App.util.esc(node.id) + '">◎ 版を残す</button>';
+    html += '<span class="ww-snap-note">書き直す前に控えを残せます（1場面 ' + SNAP_MAX + ' 版まで・古い版から自動削除）</span>';
+    html += '</div>';
+
+    // 版の一覧（折りたたみ）。開閉状態は st.snapOpen に記憶し再描画で戻さない
+    html += '<details class="ww-snap-details" id="ww-snap-details"' + (st.snapOpen ? ' open' : '') + '>';
+    html += '<summary>版の一覧（' + snaps.length + '）</summary>';
+    if (!snaps.length){
+      html += '<p class="ww-empty">まだ版がありません。「◎ 版を残す」で現在の原稿を控えられます。</p>';
+    } else {
+      html += '<ul class="ww-snap-ul">';
+      snaps.forEach(function(s){
+        var head = (s.text || "").slice(0, 20);
+        html += '<li class="ww-snap-li">';
+        html += '<div class="ww-snap-meta">';
+        html += '<span class="ww-snap-date">' + App.util.esc(App.util.fmtDate(s.createdAt)) + '</span>';
+        html += '<span class="ww-snap-chars">' + fmtNum(s.chars || 0) + ' 文字</span>';
+        if (s.label) html += '<span class="ww-snap-label">' + App.util.esc(s.label) + '</span>';
+        html += '</div>';
+        if (head) html += '<div class="ww-snap-headtext">' + App.util.esc(head) + '…</div>';
+        html += '<div class="ww-snap-actions">';
+        html += '<button type="button" class="ww-icon-btn ww-snap-restore" data-snap-id="' + App.util.esc(s.id) + '" data-node-id="' + App.util.esc(node.id) + '">戻す</button>';
+        html += '<button type="button" class="ww-icon-btn ww-snap-delete" data-snap-id="' + App.util.esc(s.id) + '">削除</button>';
+        html += '</div>';
+        html += '</li>';
+      });
+      html += '</ul>';
+    }
+    html += '</details>';
+    html += '</div>';
+    return html;
+  }
+
   /* --- 読み返しモード（全文の通し表示・編集不可）--- */
   function renderReadback(work){
     // 章あり/章なしの場面を作品順で通し表示（共通走査 scenesInOrder）。
@@ -648,11 +822,62 @@
       }
       var text = e.scene.fullText || "";
       body += '<h4 class="ww-read-scene">' + App.util.esc(e.scene.title || "（無題の場面）") + '</h4>';
-      body += '<div class="ww-read-text">' + App.util.esc(text) + '</div>';
+      // ルビ記法を <ruby> に変換して表示（rubyHtml 内で esc 済み＝XSS安全）
+      body += '<div class="ww-read-text">' + rubyHtml(text) + '</div>';
     });
+
+    // 原稿用紙換算（新人賞応募の実務）。÷400 の単純換算である旨を正直に添える
+    var pages = Math.ceil(totalChars / 400);
+
     var html = '<div class="card ww-readback">';
-    html += '<div class="overline">読み返しモード（編集不可のプレビュー）／合計 ' + fmtNum(totalChars) + ' 文字</div>';
+    html += '<div class="overline">読み返しモード（編集不可のプレビュー）／合計 ' + fmtNum(totalChars) + ' 文字／約 ' + fmtNum(pages) + ' 枚（400字詰め換算）</div>';
+    html += '<p class="ww-read-pages-note">※枚数は文字数÷400の単純換算。実際の応募規定（20字×20行等）では改行の分だけ増えます。</p>';
+
+    // 縦書きトグル・推敲チェック（読み返し専用の道具）
+    html += '<div class="ww-read-controls">';
+    html += '<button type="button" class="btn btn--sm ' + (st.vertical ? 'btn--primary' : 'btn--ghost') + '" id="ww-vertical-toggle">縦書き' + (st.vertical ? ' ON' : ' OFF') + '</button>';
+    html += '<button type="button" class="btn btn--sm ' + (st.checkOpen ? 'btn--primary' : 'btn--ghost') + '" id="ww-check-btn">🔍 推敲チェック</button>';
+    html += '</div>';
+
+    // 推敲チェック結果（ボタンで開閉。開いている間は本文より先に見せる）
+    if (st.checkOpen){
+      html += renderCheckPanel(work);
+    }
+
+    html += '<div class="ww-read-body' + (st.vertical ? ' ww-read-body--vertical' : '') + '">';
     html += body || '<p class="ww-empty">まだ本文がありません。</p>';
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  /* --- 推敲チェック結果パネル --- */
+  function renderCheckPanel(work){
+    var r = runProofCheck(work);
+    var html = '<div class="ww-check-panel">';
+    html += '<p class="overline">推敲チェック（文末と段落頭のみ検査）</p>';
+    if (!r.endings.length && !r.heads.length){
+      html += '<p class="ww-check-ok">単調な連続は見つかりませんでした。</p>';
+    } else {
+      if (r.endings.length){
+        html += '<p class="ww-check-title">文末の単調（同じ文末2文字が3文以上連続）</p>';
+        html += '<ul class="ww-check-ul">';
+        r.endings.forEach(function(x){
+          html += '<li>' + App.util.esc(x.scene) + '：「〜' + App.util.esc(x.ending) + '」が ' + x.count + ' 文連続</li>';
+        });
+        html += '</ul>';
+      }
+      if (r.heads.length){
+        html += '<p class="ww-check-title">段落頭の重複（連続する段落の書き出し2文字が同じ）</p>';
+        html += '<ul class="ww-check-ul">';
+        r.heads.forEach(function(x){
+          html += '<li>' + App.util.esc(x.scene) + '：「' + App.util.esc(x.head) + '〜」で始まる段落が ' + x.count + ' 連続</li>';
+        });
+        html += '</ul>';
+      }
+    }
+    // 機械的な参考である旨（研究の道具の思想＝道具を信じすぎない）
+    html += '<p class="ww-check-note">※機械的な検出です。会話文（「」内）は文末チェックから除外しています。意図した反復（畳みかけ等）は指摘されても直す必要はありません。</p>';
     html += '</div>';
     return html;
   }
@@ -792,6 +1017,15 @@
                          { fullText: fulltext.value });
       });
     }
+    // 「版の一覧」<details> の開閉を st に記憶する（版の削除・戻す等で
+    // renderMain しても一覧が勝手に閉じないように）。toggle は click では
+    // 拾えないためここで個別に結線する（renderMain のたびに張り直される）。
+    var snapDetails = rootEl.querySelector("#ww-snap-details");
+    if (snapDetails){
+      snapDetails.addEventListener("toggle", function(){
+        st.snapOpen = snapDetails.open;
+      });
+    }
     var summary = rootEl.querySelector("#ww-summary");
     if (summary){
       summary.addEventListener("input", function(){
@@ -852,6 +1086,38 @@
     var focusBtn = t.closest && t.closest(".ww-focus-enter");
     if (focusBtn){
       enterFocusMode(focusBtn.getAttribute("data-node-id"));
+      return;
+    }
+
+    // 版を残す（版履歴・設計 §5）
+    var snapSaveBtn = t.closest && t.closest(".ww-snap-save");
+    if (snapSaveBtn){
+      saveSnapshotManual(snapSaveBtn.getAttribute("data-node-id"));
+      return;
+    }
+    // 版に戻す（現原稿を自動でもう1版残してから置換＝戻す操作で原稿を失わない）
+    var snapRestoreBtn = t.closest && t.closest(".ww-snap-restore");
+    if (snapRestoreBtn){
+      restoreSnapshot(snapRestoreBtn.getAttribute("data-snap-id"),
+                      snapRestoreBtn.getAttribute("data-node-id"));
+      return;
+    }
+    // 版の削除
+    var snapDeleteBtn = t.closest && t.closest(".ww-snap-delete");
+    if (snapDeleteBtn){
+      deleteSnapshot(snapDeleteBtn.getAttribute("data-snap-id"));
+      return;
+    }
+
+    // 読み返し：縦書きトグル／推敲チェック開閉（どちらも文字入力中ではないので再描画可）
+    if (t.closest && t.closest("#ww-vertical-toggle")){
+      st.vertical = !st.vertical;
+      renderMain();
+      return;
+    }
+    if (t.closest && t.closest("#ww-check-btn")){
+      st.checkOpen = !st.checkOpen;
+      renderMain();
       return;
     }
 
@@ -1078,6 +1344,56 @@
     var aOrder = a.order || 0, bOrder = b.order || 0;
     App.store.update("nodes", a.id, { order: bOrder });
     App.store.update("nodes", b.id, { order: aOrder });
+    renderMain();
+  }
+
+  /* --- 版履歴の操作（設計 §5）--- */
+  // 「◎ 版を残す」: textarea の未保存分を確定 → 空チェック → ラベル入力 → 追加
+  function saveSnapshotManual(nodeId){
+    flushEditorText(nodeId); // 見えている原稿をそのまま控えるための確定
+    var node = App.store.byId("nodes", nodeId);
+    if (!node) return;
+    var text = node.fullText || "";
+    if (!text){
+      window.alert("空の版は残せません。原稿を書いてから「版を残す」を押してください。");
+      return;
+    }
+    var label = window.prompt("この版に一言（空でもかまいません）。\n例：「初稿」「冒頭を書き直す前」", "");
+    if (label === null) return; // キャンセル＝残さない
+    addSnapshot(nodeId, text, label.trim());
+    st.snapOpen = true; // 残した直後は一覧を開いて「残った」ことを見せる
+    renderMain();
+  }
+
+  /* 「戻す」: confirm → 現在の原稿を自動でもう1版残す → 置換。
+     「なぜ自動で控えるか」: 戻す操作そのものが上書きなので、戻した直後に
+     「やっぱり戻す前の方が良かった」となっても往復できるようにする（安全網の要）。 */
+  function restoreSnapshot(snapId, nodeId){
+    var snap = App.store.byId("snapshots", snapId);
+    var node = App.store.byId("nodes", nodeId);
+    if (!snap || !node) return;
+    var ok = window.confirm(
+      "この版（" + fmtNum(snap.chars || 0) + " 文字）に戻します。\n" +
+      "現在の原稿は自動でもう1版として控えられます。よろしいですか？"
+    );
+    if (!ok) return;
+    flushEditorText(nodeId); // 現在の「見えている原稿」を確定してから控える
+    var current = (App.store.byId("nodes", nodeId) || {}).fullText || "";
+    // 空の現原稿は控えない（無内容の版で30枠を埋めない）。失うものが無いため安全網も不要
+    if (current){
+      addSnapshot(nodeId, current, "戻す前の自動控え");
+    }
+    App.store.update("nodes", nodeId, { fullText: snap.text || "" });
+    st.snapOpen = true;
+    renderMain();
+  }
+
+  function deleteSnapshot(snapId){
+    var snap = App.store.byId("snapshots", snapId);
+    if (!snap) return;
+    if (!window.confirm("この版（" + fmtNum(snap.chars || 0) + " 文字）を削除します。よろしいですか？")) return;
+    App.store.remove("snapshots", snapId);
+    st.snapOpen = true; // 削除後も一覧を開いたままにする（続けて整理できるように）
     renderMain();
   }
 

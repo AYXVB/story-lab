@@ -313,3 +313,122 @@ body.focus-mode #ww-focus-overlay{
 }
 .ww-board-tags{ gap:6px; }
 .ww-board-open{ align-self:flex-start; }
+
+/* ==========================================================================
+   版履歴（スナップショット・設計 §5）
+   エディタ内の控えめな帯＋折りたたみ一覧。原稿より目立たせない
+   （安全網は「あると安心」だが主役は原稿本文）。
+   ========================================================================== */
+.ww-snap-section{
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px dashed var(--rule);
+}
+.ww-snap-head{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+}
+.ww-snap-note{ font-size:11px; color:var(--ink-soft); line-height:1.6; }
+.ww-snap-details{ margin-top:8px; }
+.ww-snap-details summary{
+  font-size:12px;
+  color:var(--ink-soft);
+  cursor:pointer;
+  padding:4px 0;
+}
+.ww-snap-ul{ list-style:none; margin:6px 0 0; padding:0; }
+.ww-snap-li{
+  padding:8px 10px;
+  margin-bottom:6px;
+  border:1px solid var(--rule);
+  border-radius:3px;
+  background:var(--paper-2);
+}
+.ww-snap-meta{
+  display:flex;
+  flex-wrap:wrap;      /* 375px でも横にはみ出さない */
+  align-items:baseline;
+  gap:10px;
+  font-size:11px;
+  color:var(--ink-soft);
+}
+.ww-snap-chars{ font-weight:700; color:var(--ink); }
+.ww-snap-label{ color:var(--accent); }
+.ww-snap-headtext{
+  font-family:var(--font-serif);
+  font-size:12px;
+  color:var(--ink);
+  margin-top:4px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;   /* 冒頭20字＋…を1行に収める */
+}
+.ww-snap-actions{ display:flex; gap:4px; margin-top:6px; }
+
+/* ==========================================================================
+   読み返し：縦書きプレビュー・原稿用紙換算・推敲チェック
+   ========================================================================== */
+.ww-read-pages-note{ font-size:11px; color:var(--ink-soft); margin:4px 0 0; line-height:1.6; }
+.ww-read-controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:10px 0 4px;
+  padding-bottom:8px;
+  border-bottom:1px dashed var(--rule);
+}
+/* エディタ下のルビ記法の案内（小さく・原稿の邪魔をしない） */
+.ww-ruby-hint{ font-size:11px; color:var(--ink-soft); margin:4px 0 0; }
+
+/* 縦書き本文。writing-mode で右→左に流し、高さを制限して横スクロールで読む
+   （原稿用紙を横にめくる感覚）。スマホ375pxでは画面高に合わせて低くする */
+.ww-read-body--vertical{
+  writing-mode:vertical-rl;
+  height:70vh;
+  max-height:70vh;
+  overflow-x:auto;     /* 縦書きでは行が横方向に増えるため横スクロール */
+  overflow-y:hidden;
+  font-family:var(--font-serif);  /* 明朝で応募原稿の見た目に寄せる */
+  padding:8px 4px;
+}
+.ww-read-body--vertical .ww-read-text{
+  line-height:2.2;     /* 縦書きはゆったりした行間（＝列間）の方が読みやすい */
+  font-size:15px;
+}
+/* 縦書き時の見出しは下罫線が縦に出て煩いのでやめ、余白のみで区切る */
+.ww-read-body--vertical .ww-read-chapter{ border-bottom:none; margin:0 6px; }
+.ww-read-body--vertical .ww-read-scene{ margin:0 4px; }
+@media (max-width:700px){
+  .ww-read-body--vertical{ height:60vh; max-height:60vh; }
+}
+
+/* 推敲チェック結果パネル（機械的な参考＝落ち着いた注意色で、赤の警告にしない） */
+.ww-check-panel{
+  margin:10px 0;
+  padding:10px 12px;
+  border:1px solid var(--rule-strong);
+  border-radius:3px;
+  background:var(--paper-2);
+}
+.ww-check-title{
+  font-size:12px;
+  font-weight:700;
+  color:var(--ink);
+  margin:8px 0 4px;
+}
+.ww-check-ul{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.ww-check-ul li{
+  font-size:12px;
+  color:var(--ink);
+  padding:3px 0;
+  border-bottom:1px dotted var(--rule);
+  line-height:1.7;
+}
+.ww-check-ok{ font-size:12.5px; color:var(--ink); margin:6px 0; }
+.ww-check-note{ font-size:11px; color:var(--ink-soft); margin:8px 0 0; line-height:1.6; }
