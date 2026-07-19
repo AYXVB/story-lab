@@ -1,0 +1,94 @@
+/* ==========================================================================
+   tags.css — タグ辞典ビュー（配置・固有部品のみ。共通部品は theme.css）
+   ========================================================================== */
+
+/* 他ビューからジャンプで着地したタグカードのハイライト（2秒で自然に消える）。
+   なぜアニメか: どのカードに飛んだのか一目で分からないと、スクロール後に
+   迷子になるため。朱色の枠を一瞬灯して視線を誘導する */
+.tag-dict-card--flash{
+  animation: tag-flash 2s ease-out;
+}
+@keyframes tag-flash{
+  0%   { box-shadow: 0 0 0 3px var(--accent); }
+  70%  { box-shadow: 0 0 0 3px var(--accent); }
+  100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+}
+
+/* カテゴリごとの節見出しの前に色ドットを入れる（技法/効果の2軸を一目で） */
+.tag-cat-block .section-title{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.tag-cat-block .section-title::before{
+  /* theme.css の ::before(◆) を打ち消し、ドットだけにする */
+  content:"";
+  margin:0;
+}
+.tag-cat-block .section-title .dot{ margin-right:2px; }
+/* theme.css の .dot は .legend 配下のみ定義のため、節見出しで使う分はここで補う */
+.tag-cat-block .section-title .dot{
+  display:inline-block;
+  width:8px; height:8px;
+  border-radius:50%;
+  vertical-align:middle;
+}
+.tag-cat-block .section-title .dot--tech{ background:var(--tag-tech); }
+.tag-cat-block .section-title .dot--effect{ background:var(--tag-effect); }
+
+/* 検索欄は横幅いっぱいに広げず適度な幅にとどめる（375px幅でも自然に収まる） */
+.tag-search-field{ max-width:360px; }
+
+/* タグカードのグリッド（A.html .dict-grid 相当） */
+.tag-dict-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));
+  gap:14px;
+}
+.tag-dict-card{ display:flex; flex-direction:column; gap:8px; }
+.tag-dict-name{ font-weight:700; }
+.tag-dict-def{
+  font-size:12.5px;
+  color:var(--ink-soft);
+  border-bottom:1px dashed var(--rule);
+  padding-bottom:8px;
+}
+.tag-dict-example, .tag-dict-source{
+  font-size:12px;
+  color:var(--ink);
+}
+.tag-dict-example b, .tag-dict-source b{
+  color:var(--ink-soft);
+  font-weight:700;
+}
+.tag-dict-foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:4px;
+}
+/* 使用数ボタンはチップ見た目だが技法/効果の色を使わず中立にする */
+.tag-usage-btn{
+  border-color:var(--rule-strong);
+  color:var(--ink-soft);
+  background:var(--paper-2);
+}
+.tag-usage-btn::before{ display:none; } /* 中立ボタンなのでドット装飾は不要 */
+.tag-dict-actions{ white-space:nowrap; }
+
+/* 逆引きパネル内の一覧項目はクリックでジャンプできることをタップ領域全体で示す */
+.tag-usage-item{
+  cursor:pointer;
+}
+.tag-usage-item:active{ background:var(--card); }
+
+/* フォームは読みやすい最大幅にとどめる（デスクトップで間延びしないため） */
+#tag-form-block{ max-width:520px; }
+
+/* 375px幅でもカードが窮屈にならないよう1カラムに落とす */
+@media (max-width:480px){
+  .tag-dict-grid{ grid-template-columns:1fr; }
+  .tag-dict-foot{ flex-direction:column; align-items:flex-start; }
+}

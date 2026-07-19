@@ -1,0 +1,117 @@
+/* ==========================================================================
+   base.css — レイアウト・ビュー切替
+   「なぜ」:全ビュー共通の骨格（ヘッダー/タブ/コンテンツ）と表示切替だけを
+   ここに置き、各ビューの中身の見た目は各ビューCSSに任せる。
+   ========================================================================== */
+
+/* --- ビュー切替（App.showView が .active を付け替える）--- */
+.view{ display:none; }
+.view.active{ display:block; }
+
+/* ==========================================================================
+   ヘッダー（アプリ名＋書き出し/読み込み＋ナビタブ）
+   ========================================================================== */
+.app-header{
+  margin:8px 12px 0;
+}
+.app-header__bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:12px;
+  flex-wrap:wrap;               /* 375px幅ではボタン列を下に折り返す */
+  border-bottom:3px double var(--rule-strong);
+  padding:14px 8px 12px;
+}
+.app-header h1{
+  margin:0 0 4px;
+  font-size:22px;
+  letter-spacing:.08em;
+  font-weight:700;
+}
+.app-header .sub{
+  font-size:12px;
+  color:var(--ink-soft);
+  letter-spacing:.05em;
+}
+.app-header__actions{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  padding-bottom:2px;
+}
+
+/* ==========================================================================
+   ナビタブ（app.js が order 昇順で <a> を生成して #nav に入れる）
+   スマホ幅では折り返し＋横スクロール可の両対応（3条件①③）。
+   ========================================================================== */
+nav.tabs{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin:14px 0 0;
+  padding:0 8px;
+  border-bottom:1px solid var(--rule);
+}
+nav.tabs a{
+  display:inline-block;
+  padding:8px 14px 7px;
+  font-size:13px;
+  color:var(--ink-soft);
+  text-decoration:none;
+  border:1px solid var(--rule);
+  border-bottom:none;
+  background:var(--paper-2);
+  border-radius:4px 4px 0 0;
+  letter-spacing:.05em;
+  white-space:nowrap;           /* タブ名を折らない（タブ列側で折り返す）*/
+}
+nav.tabs a.active{
+  color:var(--ink);
+  background:var(--paper);
+  border-color:var(--rule-strong);
+  font-weight:700;
+  position:relative;
+  top:1px;
+}
+
+/* ==========================================================================
+   コンテンツ領域
+   ========================================================================== */
+main#views{
+  max-width:1180px;
+  margin:0 auto;
+  padding:20px 20px 60px;
+}
+/* ビュー内のセクション間隔（A.html の block 相当）*/
+.block{ margin-bottom:44px; }
+
+/* ==========================================================================
+   レスポンシブ（★375px幅で横スクロールを出さない）
+   「なぜ」:スマホ移植3条件①。幅を食いがちな要素に上限と折返しを強制する。
+   ========================================================================== */
+
+/* 画像・テーブル等がはみ出さない共通の保険 */
+img, svg, video{ max-width:100%; height:auto; }
+pre, code{ white-space:pre-wrap; word-break:break-word; }
+
+/* 幅広テーブルは自分のラッパ内で横スクロールさせる（ページ全体は動かさない）*/
+.table-wrap{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+@media (max-width:600px){
+  main#views{ padding:14px 12px 48px; }
+  .app-header{ margin:6px 8px 0; }
+  .app-header__bar{ padding:10px 4px 10px; }
+  .app-header h1{ font-size:19px; }
+  nav.tabs{
+    /* タブが多い場合は折り返し。1行に収めたいビューでも横スクロール可 */
+    flex-wrap:wrap;
+    gap:4px;
+    padding:0 4px;
+  }
+  nav.tabs a{ padding:7px 10px 6px; font-size:12px; }
+  .card{ padding:14px 14px; }
+}

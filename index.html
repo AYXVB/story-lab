@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- スマホ移植を見据え、初期ズームを固定してレスポンシブCSSを効かせる -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物語研究室</title>
+<!-- アプリとして使うための宣言（タブアイコン＋「アプリとしてインストール」対応） -->
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+
+<!--
+  CSS 読込順（設計.txt §3 に固定）: theme → base → 各ビュー。
+  theme=デザイントークン＋共通部品、base=レイアウト/ビュー切替。
+  ビュー用CSSは後続エージェントが作るが、読込順を崩さないよう先に結線しておく。
+-->
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/library.css">
+<link rel="stylesheet" href="css/anatomy.css">
+<link rel="stylesheet" href="css/tags.css">
+<link rel="stylesheet" href="css/essays.css">
+<link rel="stylesheet" href="css/writing.css">
+<link rel="stylesheet" href="css/people.css">
+<link rel="stylesheet" href="css/quotes.css">
+</head>
+<body>
+
+<!-- アプリ名。案A「カード目録」の見出しトーンを踏襲 -->
+<header class="app-header">
+  <div class="app-header__bar">
+    <div class="app-header__titles">
+      <h1>物語研究室</h1>
+      <div class="sub">作品を分解し、技法と効果を目録化する — 索引カードの書庫</div>
+    </div>
+    <!-- データ書き出し/読み込み（スマホ移植3条件の②）。中身は app.js が結線 -->
+    <div class="app-header__actions">
+      <button type="button" id="btn-export" class="btn btn--ghost">⇩ 書き出し</button>
+      <button type="button" id="btn-import" class="btn btn--ghost">⇧ 読み込み</button>
+      <!-- Discord Webhook 同期便: バックアップJSONを自分のDiscordへ送る。
+           送信先URLは端末内(settings)に保存され、公開コードには含まれない -->
+      <button type="button" id="btn-discord" class="btn btn--ghost">☁ Discordへ送る</button>
+      <button type="button" id="btn-discord-config" class="btn btn--ghost btn--sm" title="送信先Webhookの設定">⚙</button>
+      <!-- 読み込みは file 入力経由。非表示にしてボタンから発火する -->
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <!-- ナビタブの器。実際のタブは app.js が order 昇順で生成する -->
+  <nav class="tabs" id="nav" aria-label="主ナビゲーション"></nav>
+</header>
+
+<!-- 各ビューが差し込まれるコンテナ。ビューは registerView 経由で登録される -->
+<main id="views"></main>
+
+<!--
+  JS 読込順（設計.txt §3 に固定）:
+  store.js → app.js → data/tags-seed.js → 各ビュー。
+  registerView は登録キュー方式（読込順非依存）だが、tags-seed.js は
+  App.seedTags を定義するだけなので app.js の後・各ビューの前に置く。
+-->
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+<script src="js/data/tags-seed.js"></script>
+<!-- 作品案内所: 有名作品のあらすじ・タグ候補（書庫の自動入力が参照） -->
+<script src="js/data/works-guide.js"></script>
+<script src="js/library.js"></script>
+<script src="js/anatomy.js"></script>
+<script src="js/tags.js"></script>
+<script src="js/essays.js"></script>
+<script src="js/writing.js"></script>
+<script src="js/people.js"></script>
+<script src="js/quotes.js"></script>
+
+</body>
+</html>

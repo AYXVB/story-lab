@@ -1,0 +1,136 @@
+/* ==========================================================================
+   people.css — 人物・設定ビュー固有のレイアウト
+   「なぜ固有CSSだけか」:色・書体・カード・チップ・ボタン・入力欄は theme.css
+   の共通部品を使う。ここは配置と固有部品（可変 key-value 行・タグの×など）
+   だけを定義する。スマホ移植3条件（375px 横スクロールなし・タップ完結・
+   ホバー非依存）を全面で守る。
+   ========================================================================== */
+
+/* --- 作品セレクタ／検索の並び --- */
+.people-workbar{ margin-bottom: 12px; }
+.people-work-field{ max-width: 420px; margin-bottom: 0; }
+.people-search-field{ max-width: 420px; }
+
+/* 空状態（作品未登録）の案内 */
+.people-empty{
+  color: var(--ink-soft);
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+/* --- kind ごとの節（グループ） --- */
+.people-group{ margin-bottom: 28px; }
+.people-group-title{
+  display: block;
+  border-bottom: 1px dashed var(--rule);
+  padding-bottom: 5px;
+  margin: 0 0 12px;
+}
+
+/* 索引カードのグリッド（幅に応じて折り返す・375px では1列） */
+.people-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+@media (max-width: 520px){
+  .people-grid{ grid-template-columns: 1fr; }
+}
+
+/* 索引カード（クリックで編集フォームを開く。カーソルで可触感を示す） */
+.people-card{ cursor: pointer; }
+.people-card--active{ outline: 2px solid var(--accent); outline-offset: 1px; }
+.people-card__head{
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.people-card__name{
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.people-card__line{
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+  /* 一言なので2行までに抑えて目録の見通しを保つ */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --- フォーム見出し（＋新規追加ボタンを右に添える） --- */
+.people-form-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.people-form-head .section-title{ margin-bottom: 12px; }
+
+/* --- 可変 key-value 行（構造化メモ） --- */
+.pp-field-row{
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  flex-wrap: wrap;           /* 375px ではラベル/値/×が折り返して縦積みになる */
+}
+.pp-field-key{
+  flex: 1 1 110px;
+  min-width: 0;              /* flex 子の最小幅0＝横あふれ（横スクロール）を防ぐ */
+}
+.pp-field-value{
+  flex: 2 1 160px;
+  min-width: 0;
+}
+.pp-field-remove{
+  flex: 0 0 auto;
+  align-self: stretch;      /* 入力欄の高さに合わせる */
+}
+
+/* --- タグ付け --- */
+.people-current-tags{ margin-bottom: 10px; min-height: 22px; }
+
+/* チップ＋×をひとまとまりにする（×はタップで外す＝ホバー非依存） */
+.people-tag-wrap{
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.people-tag-x{
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: var(--font-serif);
+}
+.people-tag-x:hover{ color: var(--accent-soft); }
+
+/* カテゴリ別の追加セレクトを横に並べる（狭い画面では折り返す） */
+.people-tag-adders{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.people-tag-add{
+  width: auto;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+/* --- フォーム操作ボタン列 --- */
+.people-form-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}

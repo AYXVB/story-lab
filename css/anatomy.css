@@ -1,0 +1,297 @@
+/* ==========================================================================
+   anatomy.css — 分解ビュー（階層エディタ＋構成バー＋タグ付け）専用の配置
+   「なぜ」:意匠は theme.css に集約。ここは分解固有のレイアウトと部品のみ。
+   A.html の .decompose-layout / .arc-bar を踏襲する。
+   ========================================================================== */
+
+/* --- 上部：作品セレクタ行 --- */
+.ana-top{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-end;
+  gap:12px;
+  margin-bottom:16px;
+}
+.ana-top .field{ margin-bottom:0; min-width:220px; flex:1 1 260px; }
+
+/* --- 作品全体への構成タグ欄 --- */
+.ana-worktags{
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+  padding:12px 14px;
+  margin-bottom:18px;
+}
+.ana-worktags .ana-worktags__title{
+  font-size:11px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  margin-bottom:8px;
+}
+
+/* --- 2カラム：左ツリー／右エディタ（A.html の 220px 1fr を踏襲）--- */
+.ana-layout{
+  display:grid;
+  grid-template-columns:240px 1fr;
+  gap:18px;
+  align-items:start;
+}
+/* スマホでは1列（ツリーが上・エディタが下）*/
+@media (max-width:760px){
+  .ana-layout{ grid-template-columns:1fr; }
+}
+
+/* --- 構成バー（緊張度の起伏）--- */
+.arc-wrap{
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+  padding:12px 14px 10px;
+  margin-bottom:18px;
+}
+.arc-title{
+  font-size:11px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  margin-bottom:8px;
+}
+.arc-bar{
+  display:flex;
+  align-items:flex-end;
+  gap:5px;
+  height:64px;
+}
+.arc-seg{
+  flex:1 1 0;
+  min-width:6px;
+  background:var(--accent-soft);
+  opacity:.55;
+  border:1px solid var(--rule-strong);
+  cursor:pointer;               /* タップで場面選択（ホバー非依存）*/
+  border-radius:2px 2px 0 0;
+  transition:opacity .1s;
+}
+/* tension=null は「低い灰色棒」で停滞を可視化 */
+.arc-seg.is-null{
+  background:var(--rule);
+  opacity:.5;
+}
+.arc-seg.current{
+  opacity:1;
+  outline:2px solid var(--ink);
+  outline-offset:1px;
+}
+/* 場面番号＋極性記号の下ラベル */
+.arc-labels{
+  display:flex;
+  gap:5px;
+  margin-top:4px;
+}
+.arc-labels .arc-lab{
+  flex:1 1 0;
+  min-width:6px;
+  text-align:center;
+  font-size:10px;
+  color:var(--ink-soft);
+  line-height:1.3;
+}
+.arc-labels .arc-pol{ display:block; font-weight:700; color:var(--accent); }
+/* 場面が無いときの構成バー空表示 */
+.arc-empty{
+  font-size:12px;
+  color:var(--ink-soft);
+  padding:6px 2px;
+}
+
+/* --- 左：階層ツリー --- */
+.tree-panel{
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+  padding:12px 10px;
+}
+.tree-panel .tree-title{
+  font-size:11px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  margin-bottom:8px;
+}
+.tree-list{ list-style:none; margin:0 0 12px; padding:0; }
+.tree-node{
+  border-left:2px solid transparent;
+  padding:4px 4px 4px 6px;
+  margin-bottom:2px;
+}
+.tree-node.current{
+  border-left:2px solid var(--accent);
+  background:rgba(166,65,46,0.07);
+}
+.tree-node__row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+/* 種別バッジ（部/章/場面）*/
+.type-badge{
+  flex-shrink:0;
+  font-size:9.5px;
+  letter-spacing:.05em;
+  color:var(--ink-soft);
+  border:1px solid var(--rule-strong);
+  border-radius:2px;
+  padding:0 4px;
+  background:var(--card);
+}
+.tree-node__name{
+  flex:1 1 auto;
+  font-size:13px;
+  color:var(--ink);
+  text-align:left;
+  background:none;
+  border:none;
+  padding:2px 0;
+  cursor:pointer;               /* タップで選択 */
+  font-family:var(--font-serif);
+  line-height:1.4;
+  word-break:break-word;
+}
+.tree-node.current .tree-node__name{ font-weight:700; }
+/* 上下移動・改名・削除の小ボタン群 */
+.tree-node__ops{
+  display:flex;
+  gap:3px;
+  flex-shrink:0;
+}
+.icon-btn{
+  font-family:var(--font-serif);
+  font-size:12px;
+  line-height:1;
+  color:var(--ink-soft);
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:2px;
+  padding:2px 5px;
+  cursor:pointer;
+}
+.icon-btn:active{ transform:translateY(1px); }
+.icon-btn[disabled]{ opacity:.3; cursor:default; }
+.icon-btn.danger{ color:var(--accent); border-color:var(--accent); }
+
+/* ノード追加フォーム（ツリー下端）*/
+.tree-add{
+  display:flex;
+  gap:6px;
+  align-items:center;
+  border-top:1px dashed var(--rule-strong);
+  padding-top:10px;
+}
+.tree-add .select{ flex:1 1 auto; padding:5px 8px; font-size:13px; }
+.tree-add .btn{ flex-shrink:0; }
+.tree-hint{
+  font-size:10.5px;
+  color:var(--ink-soft);
+  margin-top:6px;
+  line-height:1.5;
+}
+
+/* --- 右：選択ノードの編集カード --- */
+.editor-panel{ min-width:0; }   /* grid 内で幅が溢れない保険 */
+.editor-panel .field:last-child{ margin-bottom:0; }
+/* type と tension を横並びに */
+.ed-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.ed-row .field{ flex:1 1 160px; }
+
+/* 現在タグのチップ行（× で外す）*/
+.ed-tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:8px;
+  min-height:8px;
+}
+/* チップ＋×ボタンを1組に見せる包み（チップ描画は App.tagChipHtml に限る制約のため
+   ×は独立ボタンにし、この包みで視覚的に一体化する）*/
+.ed-tag-item{
+  display:inline-flex;
+  align-items:center;
+  gap:2px;
+}
+/* チップに付ける削除ボタン（チップ自体は theme.css の .chip）*/
+.chip-x{
+  margin-left:2px;
+  border:none;
+  background:none;
+  color:inherit;
+  font-size:13px;
+  line-height:1;
+  cursor:pointer;
+  padding:0 0 0 2px;
+}
+.ed-tag-add{
+  display:flex;
+  gap:6px;
+  align-items:center;
+}
+.ed-tag-add .select{ flex:1 1 auto; }
+.ed-tag-add .btn{ flex-shrink:0; }
+
+/* 緊張度スライダー行 */
+.ed-tension{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.ed-tension input[type=range]{ flex:1 1 auto; }
+.ed-tension .ten-val{
+  font-size:13px;
+  color:var(--ink);
+  min-width:52px;
+  text-align:right;
+}
+.ed-tension .btn{ flex-shrink:0; }
+
+/* 研究記録（折りたたみ）*/
+.ed-research{
+  border:1px solid var(--rule);
+  background:var(--paper-2);
+  padding:0 12px;
+  margin-top:6px;
+}
+.ed-research > summary{
+  cursor:pointer;
+  font-size:12px;
+  letter-spacing:.05em;
+  color:var(--ink-soft);
+  padding:10px 2px;
+  list-style:revert;            /* 三角マーカーを残す（タップ目印）*/
+}
+.ed-research__body{ padding:4px 0 12px; }
+.ed-research .research-note{
+  font-size:11px;
+  color:var(--ink-soft);
+  margin:0 0 12px;
+  line-height:1.6;
+}
+.ed-research .commandments{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 14px;
+}
+.ed-research .commandments label{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  font-size:13px;
+  color:var(--ink);
+}
+
+/* --- 空状態（作品未選択）--- */
+.ana-empty{
+  text-align:center;
+  color:var(--ink-soft);
+  border:1px dashed var(--rule-strong);
+  background:var(--paper-2);
+  padding:40px 20px;
+}
+.ana-empty p{ margin:0 0 14px; font-size:14px; }

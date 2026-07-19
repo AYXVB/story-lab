@@ -1,0 +1,13 @@
+{
+  "name": "物語研究室",
+  "short_name": "物語研究室",
+  "description": "作品を分解し、技法と効果を目録化する研究の道具",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4eee1",
+  "theme_color": "#b23a2f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

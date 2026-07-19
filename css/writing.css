@@ -1,0 +1,315 @@
+/* ==========================================================================
+   writing.css — 執筆ビュー固有スタイル
+   共通部品（.card/.chip/.btn/.input/.textarea/.select/.section-title/
+   .overline/.tag-row）は theme.css を使い、ここは配置と固有部品のみ。
+   接頭辞 ww- でこのビュー専用のクラスと明示する（他ビューCSSとの衝突防止）。
+   ========================================================================== */
+
+.ww-layout{
+  display:grid;
+  grid-template-columns: 220px 1fr;
+  gap:18px;
+}
+/* 375px幅対応（スマホ移植3条件①）：1カラムに落とす */
+@media (max-width:700px){
+  .ww-layout{ grid-template-columns: 1fr; }
+}
+
+/* --- 左：自作品一覧パネル --- */
+.ww-worklist{ padding:14px 12px; }
+.ww-work-ul{ list-style:none; margin:0 0 12px; padding:0; }
+.ww-work-li{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  padding:2px 0;
+  border-left:2px solid transparent;
+}
+.ww-work-li.current{
+  border-left:2px solid var(--accent);
+  background:rgba(166,65,46,0.07);
+}
+.ww-work-select{
+  flex:1;
+  text-align:left;
+  background:none;
+  border:none;
+  font-family:var(--font-serif);
+  font-size:13px;
+  color:var(--ink);
+  padding:6px 6px;
+  cursor:pointer;
+}
+.ww-work-li.current .ww-work-select{ font-weight:700; }
+.ww-new-work-form{ border-top:1px dashed var(--rule-strong); padding-top:10px; margin-top:6px; }
+/* 題名を後から変えられる旨の一言（無題で作れることの補足） */
+.ww-new-work-hint{ font-size:11px; color:var(--ink-soft); margin:6px 0 0; line-height:1.5; }
+
+/* 作品題名＋改題ボタンをひとまとまりに（ヘッダで折り返しても崩れないように） */
+.ww-work-title-wrap{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0; }
+
+/* ツリー上部の「＋場面」「＋章」を横並びに */
+.ww-tree-add-btns{ display:flex; gap:6px; flex-wrap:wrap; }
+/* 作品直下の場面（章に属さない）は左の縦罫がないので少し余白で区切る */
+.ww-scene-li--top{ margin-bottom:6px; }
+
+/* 「章へ移動」欄（強制順序の緩和・後からの整理用） */
+.ww-move-chapter-field{ margin-top:12px; }
+
+/* --- 右：作品ヘッダ（モード切替・分解へ） --- */
+.ww-work-head{ margin-bottom:16px; }
+.ww-work-head-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.ww-mode-switch{ display:flex; flex-wrap:wrap; gap:6px; }
+
+/* --- 章・場面ツリー＋原稿エディタの2カラム --- */
+.ww-editor-layout{
+  display:grid;
+  grid-template-columns: 240px 1fr;
+  gap:16px;
+}
+@media (max-width:700px){
+  .ww-editor-layout{ grid-template-columns: 1fr; }
+}
+
+.ww-tree-panel{ padding:14px 12px; align-self:start; }
+.ww-tree-panel-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
+  padding-bottom:6px;
+  border-bottom:1px dashed var(--rule-strong);
+}
+.ww-tree-ul{ list-style:none; margin:0; padding:0; }
+.ww-chapter-li{ margin-bottom:10px; }
+.ww-scene-ul{ list-style:none; margin:4px 0 4px 10px; padding:0; border-left:1px solid var(--rule); }
+.ww-scene-li{ padding-left:8px; border-left:2px solid transparent; }
+.ww-scene-li.current{ border-left:2px solid var(--accent); background:rgba(166,65,46,0.07); }
+
+.ww-node-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+}
+.ww-node-title{ font-size:13px; font-weight:700; color:var(--ink); padding:4px 0; }
+.ww-scene-select{
+  background:none;
+  border:none;
+  font-family:var(--font-serif);
+  font-size:13px;
+  color:var(--ink);
+  padding:4px 0;
+  cursor:pointer;
+  text-align:left;
+}
+.ww-scene-li.current .ww-scene-select{ font-weight:700; }
+
+.ww-node-controls{ display:flex; gap:2px; flex-wrap:wrap; }
+.ww-icon-btn{
+  font-family:var(--font-serif);
+  font-size:11px;
+  color:var(--ink-soft);
+  background:none;
+  border:1px solid var(--rule);
+  border-radius:2px;
+  padding:1px 6px;
+  cursor:pointer;
+  line-height:1.6;
+}
+.ww-icon-btn:hover{ background:var(--paper-2); color:var(--ink); }
+.ww-icon-btn:disabled{ opacity:.35; cursor:default; }
+
+/* --- 原稿エディタ --- */
+.ww-editor-panel{ padding:16px 18px; }
+.ww-editor-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:8px;
+}
+.ww-editor{ font-size:15px; line-height:1.9; }
+.ww-tag-section{ margin-top:16px; padding-top:12px; border-top:1px dashed var(--rule); }
+.ww-tag-add-row{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.ww-tag-add-row .select{ width:auto; min-width:110px; }
+.ww-tag-wrap{ display:inline-flex; align-items:center; gap:2px; }
+.ww-tag-remove{
+  border:none;
+  background:none;
+  color:var(--ink-soft);
+  cursor:pointer;
+  font-size:12px;
+  padding:0 2px;
+  line-height:1;
+}
+.ww-tag-remove:hover{ color:var(--accent); }
+
+/* --- 読み返しモード --- */
+.ww-readback{ padding:18px 20px; }
+.ww-read-chapter{
+  font-size:14px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  margin:20px 0 6px;
+  padding-bottom:4px;
+  border-bottom:1px dashed var(--rule-strong);
+}
+.ww-read-chapter:first-child{ margin-top:6px; }
+.ww-read-scene{ font-size:13px; font-weight:700; margin:14px 0 4px; }
+.ww-read-text{
+  font-size:14.5px;
+  line-height:1.95;
+  white-space:pre-wrap;
+  word-break:break-word;
+  color:var(--ink);
+}
+
+.ww-empty{ font-size:12.5px; color:var(--ink-soft); }
+.ww-placeholder{ padding:20px; font-size:13px; color:var(--ink-soft); }
+
+/* ==========================================================================
+   機能1: 執筆目標と進捗バー（ヘッダ内）
+   theme.css に .progressbar が無いので、簡単な div バーをここで用意する。
+   ========================================================================== */
+.ww-progress{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px dashed var(--rule);
+}
+.ww-progress-head{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:6px;
+}
+.ww-progress-nums{ font-size:13px; font-weight:700; color:var(--ink); }
+/* 割合バー本体（紙色の溝＋朱の塗り） */
+.ww-progressbar{
+  height:10px;
+  background:var(--paper-2);
+  border:1px solid var(--rule-strong);
+  border-radius:5px;
+  overflow:hidden;
+}
+.ww-progressbar-fill{
+  height:100%;
+  background:var(--accent);
+  /* 幅は inline style で指定。数字が動いても違和感が出ない程度に馴染ませる */
+  transition:width .2s ease;
+}
+.ww-today{ font-size:12px; color:var(--ink-soft); margin-top:6px; }
+.ww-goal-edit{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+  margin-top:8px;
+}
+.ww-goal-input{ width:auto; max-width:140px; }
+
+/* ==========================================================================
+   機能2: 集中執筆モード（全面オーバーレイ）
+   #views やナビより前面に出して周囲を覆い隠す。body.focus-mode 時のみ表示。
+   ========================================================================== */
+#ww-focus-overlay{ display:none; }
+body.focus-mode #ww-focus-overlay{
+  display:flex;
+  position:fixed;
+  inset:0;
+  z-index:1000;
+  /* 紙の質感を保ちつつ周囲を隠す（横罫つき生成り紙） */
+  background:
+    repeating-linear-gradient(0deg,
+      rgba(169,148,106,0.04) 0px, rgba(169,148,106,0.04) 1px,
+      transparent 1px, transparent 26px),
+    var(--paper);
+  padding:24px 16px;
+  overflow:auto;
+}
+.ww-focus-inner{
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  max-width:720px;      /* 読みやすい行長に制限 */
+  margin:0 auto;
+  gap:12px;
+}
+.ww-focus-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.ww-focus-count{ font-size:12px; color:var(--ink-soft); letter-spacing:.05em; }
+.ww-focus-textarea{
+  width:100%;
+  min-height:70vh;
+  font-family:var(--font-serif);
+  font-size:17px;
+  line-height:2.1;      /* ゆったりした行間で没入させる */
+  color:var(--ink);
+  background:var(--card);
+  border:1px solid var(--rule-strong);
+  border-radius:4px;
+  padding:24px 28px;
+  resize:vertical;
+}
+.ww-focus-textarea:focus{ outline:2px solid var(--accent-soft); outline-offset:0; }
+
+/* ==========================================================================
+   機能3: カード俯瞰モード（プロット計画）
+   ========================================================================== */
+.ww-board{ }
+.ww-board > .overline{ display:block; margin-bottom:12px; line-height:1.7; }
+.ww-board-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap:14px;
+}
+@media (max-width:700px){
+  .ww-board-grid{ grid-template-columns: 1fr; }
+}
+.ww-board-card{
+  padding:12px 14px;
+  cursor:pointer;   /* カード地クリックで編集へ（機能3）*/
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.ww-board-card-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:6px;
+}
+.ww-board-titles{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ww-board-chapter{
+  font-size:11px;
+  letter-spacing:.08em;
+  color:var(--ink-soft);
+}
+.ww-board-scene{ font-size:14px; font-weight:700; color:var(--ink); }
+.ww-board-meta{ display:flex; flex-wrap:wrap; gap:10px; }
+.ww-board-metaitem{ font-size:11px; color:var(--ink-soft); }
+.ww-board-summary-field{ margin-bottom:0; cursor:auto; }
+.ww-board-summary{ min-height:auto; font-size:13px; }
+.ww-board-summary-missing{
+  font-size:11px;
+  color:var(--ink-soft);
+  opacity:.7;
+  margin:4px 0 0;
+  font-style:italic;
+}
+.ww-board-tags{ gap:6px; }
+.ww-board-open{ align-self:flex-start; }
