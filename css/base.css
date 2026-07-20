@@ -45,6 +45,89 @@
 }
 
 /* ==========================================================================
+   全体検索（ヘッダー）
+   「なぜ position:relative の入れ子か」:結果パネルを検索窓の真下へ絶対配置し、
+   ヘッダーの高さを変えずに（＝下のナビタブを押し下げずに）重ねて出すため。
+   ========================================================================== */
+.app-search{
+  position:relative;
+  flex:1 1 260px;               /* 広い画面ではタイトルとボタンの間で伸縮 */
+  min-width:0;                  /* flex 子の最小幅0＝横あふれ防止（375px対応）*/
+  max-width:420px;
+  padding-bottom:2px;
+}
+.app-search__input{
+  width:100%;
+  font-size:13px;
+  padding:6px 10px;
+}
+.app-search__panel{
+  position:absolute;
+  top:calc(100% + 4px);
+  left:0;
+  right:0;
+  z-index:50;                   /* ナビタブ・本文より必ず手前に出す */
+  max-height:60vh;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  background:var(--card);
+  border:1px solid var(--rule-strong);
+  border-radius:4px;
+  box-shadow:0 6px 18px var(--card-shadow);
+  padding:8px 10px 10px;
+}
+.app-search__panel[hidden]{ display:none; }
+.gs-group{ margin-bottom:10px; }
+.gs-group:last-child{ margin-bottom:0; }
+.gs-group__title{
+  display:block;
+  border-bottom:1px dashed var(--rule);
+  padding-bottom:3px;
+  margin:0 0 6px;
+}
+/* 1件＝タップ可能な行。ホバーに依存せず、常に境界が見えるようにする */
+.gs-item{
+  display:block;
+  width:100%;
+  text-align:left;
+  background:transparent;
+  border:none;
+  border-bottom:1px solid var(--rule);
+  padding:7px 4px;
+  cursor:pointer;
+  font-family:var(--font-serif);
+  color:var(--ink);
+  font-size:13px;
+  line-height:1.6;
+}
+.gs-item:last-child{ border-bottom:none; }
+.gs-item:hover{ background:var(--paper-2); }   /* 装飾のみ。機能はタップで完結 */
+.gs-item__name{ font-weight:700; display:block; }
+.gs-item__snippet{
+  display:block;
+  color:var(--ink-soft);
+  font-size:12px;
+  word-break:break-word;
+}
+.gs-item__snippet mark{
+  background:rgba(166,65,46,0.18);
+  color:var(--accent);
+  padding:0 1px;
+}
+.gs-more, .gs-empty{
+  font-size:12px;
+  color:var(--ink-soft);
+  padding:4px 4px 0;
+  margin:0;
+}
+
+@media (max-width:600px){
+  /* スマホでは検索窓を横幅いっぱいに折り返す（タイトル/ボタンと同じ行に
+     詰め込むと 375px で崩れるため、独立した行にする）*/
+  .app-search{ flex:1 1 100%; max-width:none; }
+}
+
+/* ==========================================================================
    ナビタブ（app.js が order 昇順で <a> を生成して #nav に入れる）
    スマホ幅では折り返し＋横スクロール可の両対応（3条件①③）。
    ========================================================================== */

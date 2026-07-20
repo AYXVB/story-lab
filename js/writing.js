@@ -27,7 +27,8 @@
     mode: "edit",   // "edit"=執筆 / "read"=読み返し / "board"=俯瞰（カード計画）
     vertical: false,  // 読み返しの縦書きトグル（新人賞応募＝縦書きで確かめる実務）
     checkOpen: false, // 推敲チェック結果パネルの開閉（renderMain 再構築でも保持）
-    snapOpen: false   // 「版の一覧」<details> の開閉（再描画で閉じ戻らないよう記憶）
+    snapOpen: false,  // 「版の一覧」<details> の開閉（再描画で閉じ戻らないよう記憶）
+    exportOpen: false // 書き出し形式の選択パネルの開閉（confirm 連打を避けるため）
   };
 
   // 版履歴の上限（設計 §5）。超えたら古い順に間引く。「書き直す前の安全網」で
@@ -147,6 +148,53 @@
   // 目標が有効な数値なら返す（null=未設定 / 0以下は未設定扱い）
   function goalOf(work){
     return (typeof work.goalChars === "number" && work.goalChars > 0) ? work.goalChars : null;
+  }
+
+  /* ------------------------------------------------------------------
+     締切から逆算する進捗（機能2・設計 §5 works.deadline）
+     「なぜローカル日付で数えるか」: Date の差分をミリ秒で取ると、時刻や
+     タイムゾーンの影響で「あと1日」が「あと0日」に化ける。todayKey() と
+     同じ思想で、年月日だけを取り出して日数を数える（時刻は無視する）。
+     ------------------------------------------------------------------ */
+  // "YYYY-MM-DD" が妥当な日付ならその形のまま返す（不正・空は null）
+  function deadlineOf(work){
+    var d = work && work.deadline;
+    if (typeof d !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    return d;
+  }
+  /* 「その日の 00:00（ローカル）」を表す Date を作る。時刻を捨てた基準点同士を
+     引き算すれば、日をまたぐ計算が時刻に左右されない。 */
+  function localMidnight(y, m, d){
+    return new Date(y, m - 1, d, 0, 0, 0, 0);
+  }
+  // 今日から締切日までの残り日数（当日=0・過ぎていれば負）
+  function daysUntil(deadlineStr){
+    var p = deadlineStr.split("-");
+    var target = localMidnight(parseInt(p[0], 10), parseInt(p[1], 10), parseInt(p[2], 10));
+    var now = new Date();
+    var today = localMidnight(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    // 双方 00:00 なのでミリ秒差は必ず 1日の整数倍…ではない（夏時間で±1時間ずれる）。
+    // そのため round で丸めて「日数」に戻す。
+    return Math.round((target - today) / 86400000);
+  }
+  /* 締切表示の一文を組み立てる（進捗欄用）。表示専用＝保存はしない。
+     total/goal は保存前のライブ値も渡せるようにして、入力中の再計算にも使える。 */
+  function deadlineText(work, total){
+    var dl = deadlineOf(work);
+    if (!dl) return "";
+    var left = daysUntil(dl);
+    var goal = goalOf(work);
+    // 日数の言い回しは達成/未達で共通（負の日数を「残り -3 日」と出さない）
+    var head;
+    if (left < 0) head = "締切を過ぎています";
+    else if (left === 0) head = "締切日です";
+    else head = "締切まで残り " + fmtNum(left) + " 日";
+    // 達成済みは1日あたりの必要量より先に伝える（もう追われなくてよい、が最重要）
+    if (goal && total >= goal) return head + " ／ 目標達成";
+    if (left <= 0) return head; // 残り日数0以下は割り算が成立しない（0除算/負値）
+    if (!goal) return head; // 目標未設定なら日数だけ（1日あたりを出しようがない）
+    var need = Math.ceil((goal - total) / left);
+    return head + " ／ 1日あたり必要 " + fmtNum(need) + " 文字";
   }
 
   /* ------------------------------------------------------------------
@@ -494,6 +542,13 @@
     var sign = todayDelta >= 0 ? '+' : '';
     h += '<div class="ww-today" id="ww-today">今日 ' + sign + fmtNum(todayDelta) + ' 文字</div>';
 
+    // 締切から逆算した残り日数・1日あたり必要文字数（機能2）。
+    // 締切未設定なら要素ごと出さない（使っていない人の画面を増やさない）。
+    var dtext = deadlineText(work, total);
+    if (dtext){
+      h += '<div class="ww-deadline-info" id="ww-deadline-info">' + App.util.esc(dtext) + '</div>';
+    }
+
     // 目標の設定UI（数値入力）。目標ありでも変更・クリアできる
     h += '<div class="ww-goal-edit">';
     h += '<input type="number" class="input ww-goal-input" id="ww-goal-input" min="0" step="100" ' +
@@ -502,6 +557,10 @@
     if (goal){
       h += '<button type="button" class="btn btn--ghost btn--sm" id="ww-goal-clear">目標をクリア</button>';
     }
+    // 締切の日付入力（目標設定UIの隣）。空にすれば解除＝別ボタンを増やさない。
+    h += '<label class="ww-deadline-label" for="ww-deadline-input">締切</label>';
+    h += '<input type="date" class="input ww-deadline-input" id="ww-deadline-input" ' +
+           'value="' + App.util.esc(deadlineOf(work) || '') + '">';
     h += '</div>';
     h += '</div>';
     return h;
@@ -837,7 +896,14 @@
     html += '<div class="ww-read-controls">';
     html += '<button type="button" class="btn btn--sm ' + (st.vertical ? 'btn--primary' : 'btn--ghost') + '" id="ww-vertical-toggle">縦書き' + (st.vertical ? ' ON' : ' OFF') + '</button>';
     html += '<button type="button" class="btn btn--sm ' + (st.checkOpen ? 'btn--primary' : 'btn--ghost') + '" id="ww-check-btn">🔍 推敲チェック</button>';
+    // 原稿の書き出し（応募実務。アプリの外に原稿を出せるようにする）
+    html += '<button type="button" class="btn btn--sm ' + (st.exportOpen ? 'btn--primary' : 'btn--ghost') + '" id="ww-export-btn">⇩ 原稿を書き出し</button>';
     html += '</div>';
+
+    // 形式選択パネル（confirm を重ねると誤操作しやすいので、選択肢を並べて見せる）
+    if (st.exportOpen){
+      html += renderExportPanel(work);
+    }
 
     // 推敲チェック結果（ボタンで開閉。開いている間は本文より先に見せる）
     if (st.checkOpen){
@@ -849,6 +915,152 @@
     html += '</div>';
     html += '</div>';
     return html;
+  }
+
+  /* ------------------------------------------------------------------
+     原稿の書き出し（機能1）— アプリの外に原稿を出す
+     「なぜ2形式か」: 応募先は「テキスト提出」と「印刷/PDF提出」に大別され、
+     前者は記法をそのまま残した .txt、後者は縦書き明朝の見た目が要る。
+     どちらも外部CDNに依存しない自己完結ファイルとして出す（オフライン前提）。
+     ------------------------------------------------------------------ */
+  function renderExportPanel(work){
+    var h = '<div class="ww-export-panel">';
+    h += '<p class="overline">形式を選んで書き出します</p>';
+    h += '<div class="ww-export-btns">';
+    h += '<button type="button" class="btn btn--sm" id="ww-export-txt">テキスト（.txt）</button>';
+    h += '<button type="button" class="btn btn--sm" id="ww-export-html">縦書き印刷用（.html）</button>';
+    h += '</div>';
+    h += '<p class="ww-export-note">' +
+         'テキストはUTF-8（BOM付き＝Windowsのメモ帳で文字化けしません）。ルビ記法 ｜親《るび》 は' +
+         'そのまま残します（応募先で処理されることがあるため）。<br>' +
+         '縦書きHTMLは単体で開ける1ファイルです。ブラウザで開いて印刷（Ctrl+P）→' +
+         '「PDFとして保存」でPDF化できます。' +
+         '</p>';
+    h += '</div>';
+    return h;
+  }
+
+  // ファイル名に使えない文字を落とす（Windows禁止文字＋制御文字）。
+  // 題名が空/記号だけになった場合は "無題" に落として必ず名前が付くようにする。
+  function safeFileName(name){
+    var s = String(name || "")
+      .replace(/[\\/:*?"<>|]/g, "_")       // Windows のファイル名禁止文字
+      .replace(/[\u0000-\u001f]/g, "")     // 制御文字（貼り付け由来の混入対策）
+      .trim();
+    return s || "無題";
+  }
+  // "YYYYMMDD"（ローカル日付。todayKey と同じ考え方で UTC ずれを避ける）
+  function todayCompact(){
+    return todayKey().replace(/-/g, "");
+  }
+  /* Blob を作ってダウンロードさせる（store.exportJson と同じ方式に揃える）。
+     click 直後の revoke に失敗するブラウザがあるため解放は遅らせる。 */
+  function downloadBlob(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  }
+
+  /* プレーンテキスト本文を組み立てる。章見出し＋本文を連結し、改行は保持する。
+     ルビ記法は変換せずそのまま（＝応募先の処理系に委ねる）。 */
+  function buildPlainText(work){
+    var lines = [];
+    lines.push(work.title || "無題");
+    lines.push("");
+    var lastChapterId = undefined;
+    scenesInOrder(work.id).forEach(function(e){
+      var ch = e.chapter;
+      var chId = ch ? ch.id : null;
+      // 章が切り替わった時だけ見出しを出す（読み返し表示と同じ規則で揃える）
+      if (chId !== lastChapterId){
+        if (ch){
+          lines.push("");
+          lines.push(ch.title || "（無題の章）");
+          lines.push("");
+        }
+        lastChapterId = chId;
+      }
+      // 本文中の改行はそのまま保持する（段落＝書き手の意図なので触らない）。
+      // 保存済みの改行は LF なので、ここで一旦 LF に正規化しておき、
+      // 最後にまとめて CRLF へ直す（二重変換で \r\r\n が出るのを防ぐ）。
+      var text = (e.scene.fullText || "").replace(/\r\n/g, "\n");
+      if (text) lines.push(text);
+      lines.push(""); // 場面の区切りは空行1つ（応募原稿で自然な間）
+    });
+    // 改行コードは CRLF（Windowsのメモ帳で1行に潰れて見えるのを防ぐ）
+    return lines.join("\n").replace(/\n/g, "\r\n");
+  }
+
+  function exportPlainText(work){
+    // BOM を先頭に付ける＝メモ帳がUTF-8と判定できず文字化けする事故を防ぐ
+    var blob = new Blob(["\uFEFF" + buildPlainText(work)],
+                        { type: "text/plain;charset=utf-8" });
+    downloadBlob(blob, safeFileName(work.title) + "_" + todayCompact() + ".txt");
+  }
+
+  /* 縦書き印刷用HTML。外部CDN禁止＝CSSは全て内側に持つ自己完結ファイル。
+     本文は rubyHtml()（esc 済みの上で記法検出）を通すので、生HTMLが通る
+     経路は新設しない＝この書き出しも XSS 安全な既存経路に相乗りする。 */
+  function buildPrintHtml(work){
+    var title = App.util.esc(work.title || "無題");
+    var body = '';
+    var lastChapterId = undefined;
+    scenesInOrder(work.id).forEach(function(e){
+      var ch = e.chapter;
+      var chId = ch ? ch.id : null;
+      if (chId !== lastChapterId){
+        if (ch) body += '<h2>' + App.util.esc(ch.title || "（無題の章）") + '</h2>';
+        lastChapterId = chId;
+      }
+      body += '<div class="scene">' + rubyHtml(e.scene.fullText || "") + '</div>';
+    });
+    if (!body) body = '<div class="scene">（本文がありません）</div>';
+
+    return '<!DOCTYPE html>\n' +
+      '<html lang="ja"><head><meta charset="UTF-8">\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+      '<title>' + title + '</title>\n' +
+      '<style>\n' +
+      // 明朝の指定はローカルフォント名のみ（Webフォント取得＝外部依存を作らない）
+      'html,body{margin:0;padding:0;background:#fff;color:#111;}\n' +
+      'body{font-family:"游明朝","Yu Mincho","YuMincho","Hiragino Mincho ProN","MS PMincho",serif;}\n' +
+      '.sheet{writing-mode:vertical-rl;text-orientation:upright;height:90vh;padding:24px;' +
+      'font-size:16px;line-height:2.0;letter-spacing:.05em;}\n' +
+      'h1{font-size:20px;font-weight:700;margin:0 0 1.5em 0;letter-spacing:.2em;}\n' +
+      'h2{font-size:17px;font-weight:700;margin:0 1.5em;letter-spacing:.15em;}\n' +
+      // 本文の改行をそのまま活かす（原稿の段落＝書き手の意図）
+      '.scene{white-space:pre-wrap;margin:0 1em;}\n' +
+      'ruby rt{font-size:.5em;letter-spacing:0;}\n' +
+      '@media print{\n' +
+      '  @page{size:A4;margin:18mm;}\n' +
+      '  html,body{background:#fff;}\n' +
+      // 印刷時は画面高さ縛りを外し、用紙の高さに任せて自然に改ページさせる
+      '  .sheet{height:auto;padding:0;}\n' +
+      '  h2{break-before:page;page-break-before:always;}\n' +
+      '  h2:first-of-type{break-before:auto;page-break-before:auto;}\n' +
+      '}\n' +
+      '</style></head>\n' +
+      '<body><div class="sheet"><h1>' + title + '</h1>\n' + body + '</div></body></html>\n';
+  }
+
+  function exportPrintHtml(work){
+    var blob = new Blob([buildPrintHtml(work)],
+                        { type: "text/html;charset=utf-8" });
+    downloadBlob(blob, safeFileName(work.title) + "_" + todayCompact() + ".html");
+    // 「保存しただけで終わり」にならないよう、PDF化の手順をその場で案内する
+    window.alert(
+      "縦書きHTMLを保存しました。\n\n" +
+      "PDFにするには：\n" +
+      "1. 保存したファイルをダブルクリックしてブラウザで開く\n" +
+      "2. 印刷（Ctrl+P）を開く\n" +
+      "3. 送信先／プリンターで「PDFとして保存」を選ぶ\n\n" +
+      "※余白や文字サイズは印刷画面の設定で調整できます。"
+    );
   }
 
   /* --- 推敲チェック結果パネル --- */
@@ -914,6 +1126,10 @@
       var delta = total - readDailyBaseline(st.workId);
       todayEl.textContent = '今日 ' + (delta >= 0 ? '+' : '') + fmtNum(delta) + ' 文字';
     }
+    // 締切の逆算も入力に合わせて動かす（1日あたり必要文字数が減っていくのが
+    // 書く動機になるため）。textContent 代入なのでエスケープ不要・安全。
+    var dlEl = rootEl.querySelector("#ww-deadline-info");
+    if (dlEl) dlEl.textContent = deadlineText(work, total);
   }
 
   /* ------------------------------------------------------------------
@@ -1121,6 +1337,24 @@
       return;
     }
 
+    // 原稿の書き出し（機能1）＝「形式パネルを開く」→「形式を選ぶ」の2段。
+    // 書き出し実行では再描画しない（パネルを開いたままにして続けて別形式も出せる）。
+    if (t.closest && t.closest("#ww-export-btn")){
+      st.exportOpen = !st.exportOpen;
+      renderMain();
+      return;
+    }
+    if (t.closest && t.closest("#ww-export-txt")){
+      var wTxt = App.store.byId("works", st.workId);
+      if (wTxt) exportPlainText(wTxt);
+      return;
+    }
+    if (t.closest && t.closest("#ww-export-html")){
+      var wHtml = App.store.byId("works", st.workId);
+      if (wHtml) exportPrintHtml(wHtml);
+      return;
+    }
+
     if (t.closest && t.closest("#ww-goto-anatomy")){
       App.state.currentWorkId = st.workId;
       App.showView("anatomy");
@@ -1221,6 +1455,16 @@
     // 保存＋再描画してもカーソルは飛ばない（「あらすじ未記入」表示も更新）
     if (ev.target && ev.target.classList && ev.target.classList.contains("ww-board-summary")){
       App.store.update("nodes", ev.target.getAttribute("data-node-id"), { summary: ev.target.value });
+      renderMain();
+      return;
+    }
+    /* 締切の日付入力（機能2）。change＝日付の確定時にだけ発火するので、
+       ここで保存＋再描画してよい（文字入力中の renderMain には当たらない）。
+       空文字＝締切の解除。不正な値は保存せず null に倒す（安全側）。 */
+    if (ev.target && ev.target.id === "ww-deadline-input"){
+      var v = (ev.target.value || "").trim();
+      var ok = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+      App.store.update("works", st.workId, { deadline: ok });
       renderMain();
       return;
     }

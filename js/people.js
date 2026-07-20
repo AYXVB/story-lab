@@ -46,6 +46,15 @@
   // 一覧の絞り込み文字（show をまたいで保持）
   var searchQuery = "";
 
+  // 表示モード "list"（索引カード一覧）/ "graph"（関係図）。show をまたいで保持
+  var viewMode = "list";
+
+  // 関係図の判定に使う最小名前長。
+  // 「なぜ2文字以上か」:関係欄のテキストに名前が含まれるかの部分一致で線を
+  // 引くため、1文字名（例「A」「兄」）だと無関係な文中の1字に当たって
+  // 誤った線が大量に出る。誤検出より「引かない」方が研究の害が小さい。
+  var GRAPH_MIN_NAME_LEN = 2;
+
   /* ------------------------------------------------------------------
      ヘルパー
      ------------------------------------------------------------------ */
@@ -117,11 +126,13 @@
         '<h2 class="section-title">人物・設定</h2>' +
         '<p class="overline">名著の人物造形の記録と、自作の人物設計を同じ器・同じタグ体系で扱う。</p>' +
         '<div class="people-workbar" id="pp-workbar"></div>' +
+        '<div class="people-modebar" id="pp-modebar"></div>' +
         '<div class="field people-search-field" id="pp-search-field">' +
           '<label for="pp-search">検索</label>' +
           '<input class="input" type="text" id="pp-search" placeholder="名前・メモの値・本文で絞り込む">' +
         '</div>' +
         '<div id="pp-list"></div>' +
+        '<div id="pp-graph" hidden></div>' +
       '</div>' +
       '<div class="block" id="pp-form-block">' +
         '<div class="people-form-head">' +
@@ -160,23 +171,66 @@
     var workbar = root.querySelector("#pp-workbar");
     var searchField = root.querySelector("#pp-search-field");
     var listEl = root.querySelector("#pp-list");
+    var graphEl = root.querySelector("#pp-graph");
+    var modebar = root.querySelector("#pp-modebar");
     var formBlock = root.querySelector("#pp-form-block");
 
     // 作品が1冊も無い＝空状態（設計指示の文言）。フォーム/検索は隠す
     if (!works.length){
       workbar.innerHTML = '<p class="people-empty">書庫で作品を登録してください。</p>';
       searchField.hidden = true;
+      modebar.innerHTML = "";
       listEl.innerHTML = "";
+      graphEl.hidden = true;
+      graphEl.innerHTML = "";
       formBlock.hidden = true;
       return;
     }
 
     ensureCurrentWork();
-    searchField.hidden = false;
     formBlock.hidden = false;
     renderWorkSelector();
-    renderList();
+    renderModeBar();
+
+    // 検索は一覧の絞り込み専用なので、関係図モードでは隠す
+    // （関係図は「その作品の人物全員の関係」を見る図＝部分表示だと誤読を招く）
+    var isGraph = (viewMode === "graph");
+    searchField.hidden = isGraph;
+    listEl.hidden = isGraph;
+    graphEl.hidden = !isGraph;
+
+    if (isGraph) renderGraph();
+    else renderList();
     renderForm();
+  }
+
+  /**
+   * 「いま表示中の閲覧面」だけを描き直す。
+   * 「なぜ必要か」:編集・保存・削除のたびに一覧を描き直していたが、関係図
+   * モードでは一覧は隠れていて意味がなく、逆に図が古いまま残ってしまう。
+   * 呼び出し側がモードを気にしなくて済むよう、ここで振り分ける。
+   */
+  function refreshBrowse(){
+    if (viewMode === "graph") renderGraph();
+    else renderList();
+  }
+
+  /** 一覧⇄関係図 の表示切替（タップで完結・現在モードを見て分かるようにする）*/
+  function renderModeBar(){
+    var modes = [
+      { key: "list",  label: "一覧" },
+      { key: "graph", label: "関係図" }
+    ];
+    root.querySelector("#pp-modebar").innerHTML =
+      '<div class="people-modes">' +
+      modes.map(function(m){
+        var on = (viewMode === m.key);
+        return '<button type="button" class="btn btn--sm' + (on ? " btn--primary" : "") + '" ' +
+               'data-action="set-mode" data-mode="' + m.key + '"' +
+               (on ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' +
+               App.util.esc(m.label) + '</button>';
+      }).join("") +
+      '</div>';
   }
 
   /** 作品セレクタ（全作品＝名著も自作も対象・currentWorkId を初期選択）*/
@@ -260,6 +314,113 @@
       html += '</div></div>';
     });
     listEl.innerHTML = html;
+  }
+
+  /* ------------------------------------------------------------------
+     関係図（kind=="人物" を円周に並べ、関係欄の記述から線を引く）
+     「なぜ自前SVGか」:外部ライブラリ禁止（設計 §3）。円周配置＋直線なら
+     三角関数だけで書け、viewBox でスマホ幅までそのまま縮む。
+     「なぜ推定か」:関係はテキストで自由に書く器なので、構造化された
+     「誰と誰がどういう関係か」のデータは持っていない。持っている情報
+     （関係欄の文中に他の人物名が出るか）だけで引ける線を引く＝正直な近似。
+     ------------------------------------------------------------------ */
+
+  /** その人物の「関係」欄（ラベルに「関係」を含む行）の値をまとめて返す */
+  function relationText(el){
+    var f = el.fields || {};
+    return Object.keys(f).filter(function(k){
+      return k.indexOf("関係") >= 0;
+    }).map(function(k){
+      return f[k] == null ? "" : String(f[k]);
+    }).join(" ");
+  }
+
+  function renderGraph(){
+    var graphEl = root.querySelector("#pp-graph");
+    var work = currentWork();
+    if (!work){ graphEl.innerHTML = ""; return; }
+
+    var people = App.store.find("elements", function(el){
+      return el.workId === work.id && el.kind === "人物";
+    });
+
+    // 注記は常に出す（図が無いときも「何をする画面か」が分かるように）
+    var note =
+      '<p class="people-graph-note">関係欄のテキストから自動で推定した図です' +
+      '（正確な関係の種類までは判定しません）。' +
+      '名前の部分一致で判定するため、1文字の人物名は誤検出を避けて線を引きません。</p>';
+
+    if (people.length < 2){
+      graphEl.innerHTML =
+        '<p class="overline">関係図には2人以上の人物が必要です。' +
+        '（種別「人物」で登録した項目が対象です）</p>' + note;
+      return;
+    }
+
+    // --- 線の推定: A の関係欄に B の名前が含まれる、または逆 → A—B を結ぶ ---
+    var names = people.map(function(p){ return String(p.name || "").trim(); });
+    var rels  = people.map(function(p){ return relationText(p); });
+    var edges = [];
+    for (var i = 0; i < people.length; i++){
+      for (var j = i + 1; j < people.length; j++){
+        var a = names[i], b = names[j];
+        var linked =
+          (b.length >= GRAPH_MIN_NAME_LEN && rels[i].indexOf(b) >= 0) ||
+          (a.length >= GRAPH_MIN_NAME_LEN && rels[j].indexOf(a) >= 0);
+        if (linked) edges.push([i, j]);
+      }
+    }
+
+    // --- 円周配置 ---
+    // viewBox 固定＝CSS 側の幅に合わせて自動で縮む（375px でも横あふれしない）
+    // 幅は「円＋外側ラベル」が必ず内側に収まる値にする。ラベルは最大9字・
+    // 13px 相当＝約117単位。左端 cx-LABEL_R-117 が正になるよう cx=280 とした
+    // （viewBox からはみ出すとスマホ幅で名前が切れて読めなくなるため）
+    var W = 560, H = 420, cx = W / 2, cy = 200, R = 120, LABEL_R = 140;
+    var LABEL_MAX = 9;
+    var pts = people.map(function(p, idx){
+      // 真上(-90°)から時計回りに等間隔。上から読み始められる並びにする
+      var ang = (-Math.PI / 2) + (2 * Math.PI * idx / people.length);
+      return { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang), cos: Math.cos(ang) };
+    });
+
+    var svg = '<svg class="people-graph-svg" viewBox="0 0 ' + W + ' ' + H + '" ' +
+              'role="img" aria-label="人物関係図">';
+
+    // 線を先に描く（円の下に来るようにする）
+    edges.forEach(function(e){
+      svg += '<line class="pg-edge" x1="' + pts[e[0]].x.toFixed(1) + '" y1="' + pts[e[0]].y.toFixed(1) +
+             '" x2="' + pts[e[1]].x.toFixed(1) + '" y2="' + pts[e[1]].y.toFixed(1) + '"></line>';
+    });
+
+    people.forEach(function(p, idx){
+      var pt = pts[idx];
+      var active = (editing && editing.id === p.id);
+      var nm = String(p.name || "（無名）");
+      // 長い名前は図が破綻するので表示だけ省略する（データは変えない）
+      var shown = nm.length > LABEL_MAX ? nm.slice(0, LABEL_MAX) + "…" : nm;
+      // 円の外側にラベルを置く。左半分は右寄せ、右半分は左寄せ＝図に被らない
+      var lx = cx + LABEL_R * Math.cos(Math.atan2(pt.y - cy, pt.x - cx));
+      var ly = cy + LABEL_R * Math.sin(Math.atan2(pt.y - cy, pt.x - cx));
+      var anchor = pt.cos > 0.25 ? "start" : (pt.cos < -0.25 ? "end" : "middle");
+
+      svg +=
+        '<g class="pg-node' + (active ? " pg-node--active" : "") + '" ' +
+           'data-action="open-element" data-id="' + App.util.esc(p.id) + '">' +
+          '<circle class="pg-dot" cx="' + pt.x.toFixed(1) + '" cy="' + pt.y.toFixed(1) + '" r="14"></circle>' +
+          '<text class="pg-label" x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" ' +
+                'text-anchor="' + anchor + '" dominant-baseline="middle">' +
+            App.util.esc(shown) +
+          '</text>' +
+        '</g>';
+    });
+    svg += '</svg>';
+
+    graphEl.innerHTML =
+      '<div class="people-graph-wrap">' + svg + '</div>' +
+      '<p class="overline">人物 ' + people.length + ' 名／推定した関係線 ' + edges.length + ' 本。' +
+      '丸をタップするとその人物の編集フォームが開きます。</p>' +
+      note;
   }
 
   /* ------------------------------------------------------------------
@@ -379,12 +540,22 @@
      ------------------------------------------------------------------ */
   function onClick(ev){
     var t = ev.target;
+    // ★SVG の子要素（circle/text）も closest を持つが、念のため
+    //   Element でない標的（テキストノード等）は無視して落ちないようにする
+    if (!t || typeof t.closest !== "function") return;
+
+    var modeBtn = t.closest('[data-action="set-mode"]');
+    if (modeBtn){
+      viewMode = modeBtn.getAttribute("data-mode");
+      render();
+      return;
+    }
 
     var openEl = t.closest('[data-action="open-element"]');
     if (openEl){ openElement(openEl.getAttribute("data-id")); return; }
 
     var newBtn = t.closest('[data-action="new-element"]');
-    if (newBtn){ editing = newDraft(); renderForm(); renderList(); return; }
+    if (newBtn){ editing = newDraft(); renderForm(); refreshBrowse(); return; }
 
     var addField = t.closest('[data-action="add-field"]');
     if (addField){
@@ -416,7 +587,7 @@
     if (saveBtn){ syncFormToDraft(); saveElement(); return; }
 
     var cancelBtn = t.closest('[data-action="cancel-edit"]');
-    if (cancelBtn){ editing = newDraft(); renderForm(); renderList(); return; }
+    if (cancelBtn){ editing = newDraft(); renderForm(); refreshBrowse(); return; }
 
     var delBtn = t.closest('[data-action="delete-element"]');
     if (delBtn){ deleteElement(); return; }
@@ -433,7 +604,7 @@
       // 作品を切り替えたら、その作品用の新規フォームに戻す（別作品の下書きを持ち越さない）
       App.state.currentWorkId = workSel.value;
       editing = newDraft();
-      renderList();
+      refreshBrowse();
       renderForm();
       return;
     }
@@ -474,7 +645,7 @@
     if (el.workId) App.state.currentWorkId = el.workId;
     editing = draftFromElement(el);
     renderWorkSelector();
-    renderList();
+    refreshBrowse();
     renderForm();
     root.querySelector("#pp-form-block").scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -525,7 +696,7 @@
       });
       editing.id = obj.id;  // 追加後はそのまま編集を続けられるようにする
     }
-    renderList();
+    refreshBrowse();
     renderForm();
   }
 
@@ -538,7 +709,7 @@
     if (!ok) return;
     App.store.remove("elements", editing.id);
     editing = newDraft();
-    renderList();
+    refreshBrowse();
     renderForm();
   }
 

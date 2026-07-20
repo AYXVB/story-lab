@@ -59,7 +59,21 @@
   /* ==================================================================
      表示のたび：セレクタと本体を作り直す
      ================================================================== */
-  function show(){ render(); }
+  function show(){
+    // 他ビュー（全体検索・考察の根拠・タグ辞典の逆引き・比較統計の棒）から
+    // 「この場面へ飛べ」と指定されて来た場合は、その節を選択状態にする。
+    // 「なぜ必要か」: これが無いと作品までしか合わず、飛んだ先で目的の場面を
+    // 自分で探し直すことになる（ジャンプの意味が半減する）。
+    // 使い捨て（読んだら消す）＝次回以降の表示に持ち越さない。
+    var jumpId = App.state && App.state.currentNodeId;
+    if (jumpId){
+      App.state.currentNodeId = null;
+      var target = App.store.byId("nodes", jumpId);
+      // 今表示する作品に属する節のときだけ選択する（作品違いの誤選択を防ぐ）
+      if (target && target.workId === currentWorkId()) currentNodeId = jumpId;
+    }
+    render();
+  }
 
   function render(){
     renderSelector();

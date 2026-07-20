@@ -23,6 +23,8 @@
 <link rel="stylesheet" href="css/writing.css">
 <link rel="stylesheet" href="css/people.css">
 <link rel="stylesheet" href="css/quotes.css">
+<link rel="stylesheet" href="css/compare.css">
+<link rel="stylesheet" href="css/read.css">
 </head>
 <body>
 
@@ -53,6 +55,16 @@
       <!-- 読み込みは file 入力経由。非表示にしてボタンから発火する -->
       <input type="file" id="import-file" accept="application/json,.json" hidden>
     </div>
+    <!-- 全体検索: 作品・場面・一節・考察・人物・タグを横断して探す。
+         結果パネルは app.js が中身を作る（位置決めは base.css の .app-search）。
+         なぜヘッダーか: どのビューにいても同じ場所から探せることが
+         「目録」としての価値だから（ビューごとの検索とは別レイヤー） -->
+    <div class="app-search" id="app-search">
+      <input type="search" class="input app-search__input" id="global-search"
+             placeholder="全体を検索（作品・場面・一節・考察・人物）"
+             autocomplete="off" aria-label="全体を検索">
+      <div class="app-search__panel" id="global-search-results" hidden></div>
+    </div>
   </div>
   <!-- ナビタブの器。実際のタブは app.js が order 昇順で生成する -->
   <nav class="tabs" id="nav" aria-label="主ナビゲーション"></nav>
@@ -79,6 +91,8 @@
 <script src="js/writing.js"></script>
 <script src="js/people.js"></script>
 <script src="js/quotes.js"></script>
+<script src="js/compare.js"></script>
+<script src="js/read.js"></script>
 
 </body>
 </html>

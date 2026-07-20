@@ -69,7 +69,7 @@
 
   // アプリの版。機能を足したらここを上げる（画面右上に小さく表示され、
   // 「更新が反映されているか」を目で確認できる＝古い画面のまま気づかない事故を防ぐ）
-  var APP_VERSION = "v2.0";
+  var APP_VERSION = "v2.3";
 
   /** ビュー登録。各ビューJSがファイル末尾で呼ぶ */
   App.registerView = function(def){
@@ -193,6 +193,221 @@
     return '<span class="' + cls + '" data-tag-id="' + App.util.esc(tag.id) + '">' +
            App.util.esc(tag.name) + '</span>';
   };
+
+  /* ------------------------------------------------------------------
+     全体検索（ヘッダー）
+     「なぜ app.js に置くか」:全コレクション横断＝どのビューにも属さない
+     機能であり、ビュー間の遷移（App.showView＋App.state の受け渡し）を
+     行う。この2つを知っているのは app.js だけなので、ここが正しい住所。
+     ------------------------------------------------------------------ */
+
+  // ビュー間の選択共有。どのファイルが先に走っても壊れないよう毎回保証する
+  App.state = App.state || {};
+
+  // 各コレクションの検索定義。
+  // fields: 検索対象の文字列を item から取り出す関数の配列（前から順に評価し、
+  //         最初に一致した欄の抜粋を出す＝「どこで当たったか」が分かる）。
+  // name:   結果行の見出しに出す文字列。
+  var SEARCH_DEFS = [
+    { key: "works", label: "作品",
+      name: function(w){ return w.title || "（無題）"; },
+      fields: [
+        function(w){ return w.title; },
+        function(w){ return w.author; },
+        function(w){ return w.note; }
+      ] },
+    { key: "nodes", label: "場面",
+      name: function(n){ return n.title || "（無題の節）"; },
+      fields: [
+        function(n){ return n.title; },
+        function(n){ return n.summary; },
+        function(n){ return n.quoteText; },
+        function(n){ return n.fullText; }
+      ] },
+    { key: "quotes", label: "一節",
+      name: function(q){ return q.sourceTitle || "（出典不明）"; },
+      fields: [
+        function(q){ return q.text; },
+        function(q){ return q.sourceTitle; },
+        function(q){ return q.sourceAuthor; },
+        function(q){ return q.whyGood; }
+      ] },
+    { key: "essays", label: "考察",
+      name: function(e){ return e.title || "（無題の考察）"; },
+      fields: [
+        function(e){ return e.title; },
+        function(e){ return e.body; }
+      ] },
+    { key: "elements", label: "人物",
+      name: function(el){ return el.name || "（無名）"; },
+      fields: [
+        function(el){ return el.name; },
+        function(el){ return el.body; },
+        // 構造化メモは「値」だけを対象にする（ラベルは器＝何が書いてあるかで探す）
+        function(el){
+          var f = el.fields || {};
+          return Object.keys(f).map(function(k){ return f[k]; }).join(" ／ ");
+        }
+      ] },
+    { key: "tags", label: "タグ",
+      name: function(t){ return t.name || "（無名タグ）"; },
+      fields: [
+        function(t){ return t.name; },
+        function(t){ return t.definition; }
+      ] }
+  ];
+
+  var SEARCH_PER_TYPE = 5;      // 種別ごとの表示上限（残りは「他N件」で示す）
+  var SNIPPET_PAD = 20;         // 該当語の前後に何字ぶん文脈を添えるか
+
+  /**
+   * 該当箇所の抜粋HTMLを作る。一致しなければ null。
+   * ★安全の要:「先に esc → エスケープ済み文字列の"間"に <mark> を挿入」
+   *   の順序を厳守する。逆（先に <mark> を入れてから esc）だと mark 自体が
+   *   文字列化されるし、生の text をそのまま連結すると利用者が書いた
+   *   < > がタグとして解釈される（＝生HTMLが通る経路になる）。
+   *   ここでは pre/hit/post の3片を個別に esc し、タグは定数としてのみ足す。
+   */
+  function searchSnippet(raw, qLower){
+    if (raw === null || raw === undefined) return null;
+    // 改行・連続空白は1つの空白へ潰す（本文が長い場合に抜粋を読みやすくする）
+    var s = String(raw).replace(/\s+/g, " ").trim();
+    if (!s) return null;
+    var i = s.toLowerCase().indexOf(qLower);
+    if (i < 0) return null;
+
+    var start = Math.max(0, i - SNIPPET_PAD);
+    var end   = Math.min(s.length, i + qLower.length + SNIPPET_PAD);
+    var pre  = (start > 0 ? "…" : "") + s.slice(start, i);
+    var hit  = s.slice(i, i + qLower.length);
+    var post = s.slice(i + qLower.length, end) + (end < s.length ? "…" : "");
+
+    var esc = App.util.esc;
+    return esc(pre) + "<mark>" + esc(hit) + "</mark>" + esc(post);
+  }
+
+  /** 全コレクションを横断検索し、種別ごとの結果配列を返す */
+  function runGlobalSearch(query){
+    var qLower = query.toLowerCase();
+    var data = App.store.get();
+    var groups = [];
+
+    SEARCH_DEFS.forEach(function(def){
+      var items = data[def.key] || [];
+      var hits = [];
+      items.forEach(function(item){
+        // 前から順に評価し、最初に当たった欄で抜粋を作る
+        for (var i = 0; i < def.fields.length; i++){
+          var snippet = searchSnippet(def.fields[i](item), qLower);
+          if (snippet){
+            hits.push({ id: item.id, name: def.name(item), snippet: snippet });
+            return;
+          }
+        }
+      });
+      if (hits.length) groups.push({ def: def, hits: hits });
+    });
+    return groups;
+  }
+
+  /** 結果パネルのHTMLを組み立てる（name/snippet は既にエスケープ済み前提でない
+      ため、name はここで esc し、snippet は searchSnippet が作った安全なHTML）*/
+  function renderSearchResults(panel, groups){
+    var esc = App.util.esc;
+    if (!groups.length){
+      panel.innerHTML = '<p class="gs-empty">見つかりませんでした。</p>';
+      return;
+    }
+    var html = "";
+    groups.forEach(function(g){
+      html += '<div class="gs-group">' +
+              '<h3 class="gs-group__title overline">' + esc(g.def.label) +
+                '（' + g.hits.length + '）</h3>';
+      g.hits.slice(0, SEARCH_PER_TYPE).forEach(function(h){
+        html += '<button type="button" class="gs-item" ' +
+                'data-gs-type="' + esc(g.def.key) + '" ' +
+                'data-gs-id="' + esc(h.id) + '">' +
+                '<span class="gs-item__name">' + esc(h.name) + '</span>' +
+                '<span class="gs-item__snippet">' + h.snippet + '</span>' +
+                '</button>';
+      });
+      if (g.hits.length > SEARCH_PER_TYPE){
+        html += '<p class="gs-more">他 ' + (g.hits.length - SEARCH_PER_TYPE) + ' 件</p>';
+      }
+      html += '</div>';
+    });
+    panel.innerHTML = html;
+  }
+
+  /**
+   * 検索結果のクリック＝対応ビューへ移動。
+   * 「なぜ App.state 経由か」:各ビューは show() で App.state を読んで
+   * 自分の表示対象を決める契約（設計 §6）。ここで直接DOMを触らない。
+   */
+  function gotoSearchResult(type, id){
+    if (type === "works"){
+      App.state.currentWorkId = id;
+      App.showView("library");
+    } else if (type === "nodes"){
+      var node = App.store.byId("nodes", id);
+      if (node && node.workId) App.state.currentWorkId = node.workId;
+      App.state.currentNodeId = id;
+      App.showView("anatomy");
+    } else if (type === "quotes"){
+      App.showView("quotes");
+    } else if (type === "essays"){
+      App.showView("essays");
+    } else if (type === "elements"){
+      var el = App.store.byId("elements", id);
+      if (el && el.workId) App.state.currentWorkId = el.workId;
+      App.showView("people");
+    } else if (type === "tags"){
+      App.state.jumpToTagId = id;        // タグ辞典の既存ジャンプ機構に乗る
+      App.showView("tags");
+    }
+  }
+
+  /** ヘッダー検索窓の結線（boot から1回だけ呼ぶ）*/
+  function initGlobalSearch(){
+    var input = document.getElementById("global-search");
+    var panel = document.getElementById("global-search-results");
+    if (!input || !panel) return;
+
+    function close(){ panel.hidden = true; panel.innerHTML = ""; }
+
+    function update(){
+      var q = input.value.trim();
+      if (!q){ close(); return; }        // 空入力は閉じる（雑音を出さない）
+      renderSearchResults(panel, runGlobalSearch(q));
+      panel.hidden = false;
+    }
+
+    // 連打で全件走査が走らないよう 200ms 間引く（データが増えるほど効く）
+    input.addEventListener("input", App.util.debounce(update, 200));
+    // 一度閉じた後に窓へ戻ったとき、入力が残っていれば結果を出し直す
+    input.addEventListener("focus", function(){ if (input.value.trim()) update(); });
+
+    panel.addEventListener("click", function(ev){
+      var btn = ev.target.closest("[data-gs-type]");
+      if (!btn) return;
+      gotoSearchResult(btn.getAttribute("data-gs-type"), btn.getAttribute("data-gs-id"));
+      close();
+      input.blur();                      // スマホでキーボードを閉じる
+    });
+
+    // Esc で閉じる（キーボード操作の定石。入力欄にフォーカスが無くても効く）
+    document.addEventListener("keydown", function(ev){
+      if (ev.key === "Escape" && !panel.hidden) close();
+    });
+
+    // 外側クリックで閉じる。検索窓自身とパネルの中は対象外
+    document.addEventListener("click", function(ev){
+      if (panel.hidden) return;
+      var wrap = document.getElementById("app-search");
+      if (wrap && wrap.contains(ev.target)) return;
+      close();
+    });
+  }
 
   /* ------------------------------------------------------------------
      起動処理
@@ -515,6 +730,9 @@
       })[0];
       App.showView(first.id);
     }
+
+    // 3.5) 全体検索の結線（ビュー登録後＝どのビューへも飛べる状態にしてから）
+    initGlobalSearch();
 
     // 4) 書き出し/読み込みボタンの結線（スマホ移植3条件②）
     var btnExport = document.getElementById("btn-export");

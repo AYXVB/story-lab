@@ -1,0 +1,309 @@
+/* ==========================================================================
+   read.css — 通読ビュー（js/read.js）
+   「なぜ別ファイルか」: 分解(anatomy)は編集のための密な画面、通読は読むための
+   ゆったりした画面で、同じ .card でも余白・行間の狙いが違う。意匠の値を
+   混ぜると片方を直すたびにもう片方が崩れるため、読み専用の調整はここに閉じる。
+   ★色・書体・チップ等の基本トークンは theme.css を使い、ここでは再定義しない。
+   ========================================================================== */
+
+/* --- 上部：作品の見出し --- */
+.rd-workhead{
+  border-left:3px solid var(--accent-soft);
+  padding:2px 0 2px 12px;
+  margin:0 0 16px;
+}
+.rd-workhead__title{
+  font-size:20px;
+  font-weight:700;
+  line-height:1.5;
+}
+.rd-workhead__meta{
+  font-size:12px;
+  color:var(--ink-soft);
+  letter-spacing:.05em;
+}
+/* 構造軸（種別・長さ等）。タグではないので chip とは別の地味な見た目にする */
+.rd-axes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:8px;
+}
+.rd-axis{
+  font-size:11px;
+  color:var(--ink-soft);
+  border:1px solid var(--rule);
+  background:var(--paper-2);
+  border-radius:2px;
+  padding:2px 7px;
+  white-space:nowrap;
+}
+.rd-worktags{ margin-top:8px; }
+
+/* あらすじ（折りたたみ・既定は開）*/
+.rd-note{ margin-top:10px; }
+.rd-note > summary{
+  font-size:11px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  cursor:pointer;
+  list-style:none;
+}
+.rd-note > summary::before{ content:"▸ "; }
+.rd-note[open] > summary::before{ content:"▾ "; }
+.rd-note__body{
+  font-size:13px;
+  color:var(--ink-soft);
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+  padding:10px 12px;
+  margin-top:6px;
+  white-space:pre-wrap;   /* 案内所のあらすじは改行に意味があるので保持する */
+}
+
+/* --- 緊張度カーブ（骨格は anatomy.css の .arc-* を共有し、差分だけ上書き）--- */
+.rd-arc .arc-seg{
+  cursor:pointer;         /* タップでその場面へ移動（ホバー非依存）*/
+}
+.rd-arc .arc-seg:active{ opacity:1; }
+
+/* --- 集計の一行 --- */
+.rd-stats{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px 16px;
+  font-size:12px;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--rule);
+  padding-bottom:10px;
+  margin-bottom:12px;
+}
+.rd-stats__tags{
+  display:inline-flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+}
+.rd-topchip{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+}
+.rd-topcount{
+  font-size:10px;
+  color:var(--ink-soft);
+}
+
+/* --- 表示の詳しさ（密度トグル）＋ 書き出し --- */
+.rd-density{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  margin-bottom:10px;
+}
+.rd-tools{ margin-bottom:14px; }
+
+.rd-export-panel{
+  border:1px dashed var(--rule-strong);
+  background:var(--paper-2);
+  padding:12px 14px;
+  margin-bottom:16px;
+}
+.rd-export-btns{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:8px 0;
+}
+.rd-export-note{
+  font-size:11.5px;
+  color:var(--ink-soft);
+  line-height:1.7;
+  margin:0;
+}
+
+/* --- 本体：連続した研究ノート --- */
+.rd-doc{
+  max-width:760px;   /* 読み物として1行が長くなりすぎないようにする */
+}
+
+/* 章・部の見出し（折りたたみ）*/
+.rd-chapter{ margin:0 0 20px; }
+.rd-chapter__head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  list-style:none;
+  border-bottom:1px solid var(--rule-strong);
+  padding:6px 0;
+  margin-bottom:12px;
+}
+.rd-chapter__head::-webkit-details-marker{ display:none; }
+.rd-chapter__head::before{
+  content:"▸";
+  color:var(--accent-soft);
+  font-size:12px;
+}
+.rd-chapter[open] > .rd-chapter__head::before{ content:"▾"; }
+.rd-chapter__title{
+  font-size:17px;
+  font-weight:700;
+  letter-spacing:.05em;
+}
+/* 種別バッジ（分解ツリーと同じ呼び名。ここで独自に定義せず簡素に整えるだけ）*/
+.rd-chapter__head .type-badge{
+  font-size:10px;
+  color:var(--ink-soft);
+  border:1px solid var(--rule);
+  padding:1px 5px;
+  border-radius:2px;
+  white-space:nowrap;
+}
+/* 入れ子（部の下の章など）は左に少しだけ寄せて階層を示す */
+.rd-chapter__body{ padding-left:2px; }
+.rd-depth-1 > .rd-chapter__body,
+.rd-depth-2 > .rd-chapter__body,
+.rd-depth-3 > .rd-chapter__body{
+  padding-left:10px;
+  border-left:1px solid var(--rule);
+}
+.rd-depth-1 > .rd-chapter__head .rd-chapter__title{ font-size:15px; }
+.rd-depth-2 > .rd-chapter__head .rd-chapter__title,
+.rd-depth-3 > .rd-chapter__head .rd-chapter__title{ font-size:14px; }
+
+/* 章そのものの要約（読み進める前の見取り図）*/
+.rd-chapter__lead{
+  font-size:13.5px;
+  margin:0 0 8px;
+}
+.rd-chapter__note{
+  font-size:13px;
+  color:var(--ink-soft);
+  margin:0 0 12px 1.2em;
+  padding-left:8px;
+  border-left:2px solid var(--rule);
+}
+
+/* 場面カード */
+.rd-scene{ margin:0 0 16px; }
+.rd-scene__head{
+  display:flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:6px 10px;
+  margin-bottom:8px;
+}
+.rd-scene__title{
+  font-size:16px;
+  font-weight:700;
+  margin:0;
+  flex:1 1 auto;
+  line-height:1.5;
+}
+/* 「編集」は読む邪魔をしないよう小さく右端に置く（機能はタップで完結）*/
+.rd-edit{ flex:0 0 auto; }
+
+/* 緊張度（数値＋小さなバー）*/
+.rd-tension{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:8px;
+}
+.rd-tension__val{
+  font-size:11px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  white-space:nowrap;
+}
+.rd-tension__track{
+  flex:1 1 auto;
+  max-width:200px;
+  height:6px;
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+  border-radius:2px;
+  overflow:hidden;
+}
+.rd-tension__fill{
+  display:block;
+  height:100%;
+  background:var(--accent-soft);
+}
+.rd-tension--null .rd-tension__val{ opacity:.7; }
+
+/* 要約（本文）と ★以降の分析文 */
+.rd-summary{
+  margin:0 0 10px;
+  font-size:14.5px;
+  line-height:1.9;
+}
+.rd-analysis{
+  margin:0 0 10px 1.2em;
+  padding-left:10px;
+  border-left:2px solid var(--rule);
+  font-size:13.5px;
+  color:var(--ink-soft);
+  line-height:1.85;
+}
+.rd-blank{
+  margin:0 0 10px;
+  font-size:12px;
+  color:var(--ink-soft);
+  opacity:.8;
+}
+
+.rd-scene__tags{ margin-top:10px; }
+
+/* 研究記録（値のある行だけが並ぶ）*/
+.rd-research{
+  margin-top:10px;
+  padding-top:8px;
+  border-top:1px dashed var(--rule);
+}
+.rd-research__row{
+  display:flex;
+  gap:8px;
+  font-size:12px;
+  line-height:1.8;
+}
+.rd-research__label{
+  flex:0 0 62px;
+  color:var(--ink-soft);
+  letter-spacing:.1em;
+}
+.rd-research__val{ flex:1 1 auto; }
+
+/* カーブから飛んできた場面を一瞬だけ強調（色だけに頼らず枠で示す）*/
+.rd-scene--flash{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+
+/* 空状態 */
+.rd-empty{
+  border:1px dashed var(--rule-strong);
+  background:var(--paper-2);
+  padding:24px 20px;
+  text-align:center;
+  color:var(--ink-soft);
+  font-size:14px;
+}
+.rd-empty p{ margin:0 0 14px; }
+
+/* --- スマホ（375px で横スクロールを出さない）--- */
+@media (max-width:600px){
+  .rd-workhead__title{ font-size:18px; }
+  .rd-doc{ max-width:none; }
+  .rd-scene__title{ font-size:15px; }
+  /* 研究記録はラベル幅を固定せず縦積みにする（狭い幅で値が潰れないように）*/
+  .rd-research__row{ flex-direction:column; gap:0; }
+  .rd-research__label{ flex:none; }
+  /* 分析文の字下げは狭い画面では控えめに（左端が細くなりすぎない）*/
+  .rd-analysis{ margin-left:0; }
+  .rd-chapter__note{ margin-left:0; }
+  .rd-tension__track{ max-width:none; }
+}

@@ -1,0 +1,179 @@
+/* ==========================================================================
+   compare.css — 比較・統計ビュー（id:compare / order:70）
+   theme.css の共通部品（.card / .chip / .table / .btn / .field）を土台に、
+   このビュー固有の「グラフ」だけを足す。
+   ★方針: グラフは外部ライブラリ禁止のため div の高さ・幅だけで描く。
+   ★方針: 375px幅で横スクロールを出さない＝A/B は常に縦積み、幅は%指定。
+   ========================================================================== */
+
+/* --- 作品セレクタ行（A/B・モチーフ共通）--- */
+.view-compare .cmp-pickers{
+  display:flex;
+  flex-wrap:wrap;              /* 狭い画面では自然に折り返す＝横スクロール無し */
+  gap:12px;
+  margin-bottom:14px;
+}
+.view-compare .cmp-pickers .field{
+  margin-bottom:0;
+  flex:1 1 240px;
+  min-width:0;                 /* flex 子要素が中身の幅で押し広げるのを防ぐ */
+}
+
+/* --- 比較カード（A / B）--- */
+/* 上下に並べる。左右2カラムにしないのは、375px で必ず破綻するため。
+   広い画面でも「上下に重ねて形を見比べる」方が緊張度カーブの比較に向く。 */
+.view-compare .cmp-side{ margin-bottom:14px; }
+
+.view-compare .cmp-card{ padding:12px 14px; }
+.view-compare .cmp-card__head{
+  font-weight:700;
+  font-size:15px;
+  border-bottom:1px solid var(--rule);
+  padding-bottom:6px;
+  margin-bottom:10px;
+  overflow-wrap:anywhere;      /* 長い題名でも器を押し広げない */
+}
+.view-compare .cmp-card__author{
+  font-weight:400;
+  font-size:12px;
+  color:var(--ink-soft);
+}
+
+/* 小見出し（緊張度カーブ／基本情報／タグ構成の札）*/
+.view-compare .cmp-sub{
+  font-size:11px;
+  letter-spacing:.1em;
+  color:var(--ink-soft);
+  margin-bottom:6px;
+}
+
+/* --- ① 緊張度カーブ ---------------------------------------------------
+   場面数が違う作品どうしを比べられるよう、棒は flex:1 1 0 で
+   コンテナ幅（=100%）を等分する＝横幅が自動で正規化される。 */
+.view-compare .cmp-curve{ margin-bottom:14px; }
+.view-compare .cmp-bar{
+  display:flex;
+  align-items:flex-end;
+  gap:2px;
+  height:64px;
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+  padding:4px;
+}
+.view-compare .cmp-seg{
+  flex:1 1 0;
+  min-width:0;                 /* 場面が多くても溢れさせない（0まで痩せる）*/
+  background:var(--accent-soft);
+  opacity:.6;
+  border:1px solid var(--rule-strong);
+  border-radius:2px 2px 0 0;
+  cursor:pointer;              /* タップで分解へ（ホバー非依存）*/
+}
+/* 緊張度が未設定の場面は低い灰色棒＝「記録の空白」を隠さず見せる */
+.view-compare .cmp-seg.is-null{
+  background:var(--rule);
+  opacity:.45;
+}
+
+/* --- ① 基本情報テーブル --- */
+.view-compare .cmp-basics{ margin-bottom:14px; }
+.view-compare .cmp-basics .table th{
+  width:34%;
+  white-space:nowrap;
+  text-align:left;
+}
+
+/* --- ① タグ構成 --- */
+.view-compare .cmp-tags{ margin-bottom:2px; }
+
+/* 注記・警告 */
+.view-compare .cmp-note{
+  font-size:12px;
+  color:var(--ink-soft);
+  line-height:1.7;
+  margin:8px 0 14px;
+}
+/* 母数への注意。統計を読み違えると研究がまるごと間違うので目立たせる */
+.view-compare .cmp-warn{
+  font-size:12px;
+  line-height:1.7;
+  color:var(--accent);
+  border-left:3px solid var(--accent-soft);
+  background:var(--card);
+  padding:8px 10px;
+  margin:0 0 12px;
+}
+
+/* --- ② 共起統計：方向切替 --- */
+.view-compare .cmp-dir{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:12px;
+}
+
+/* 件数・割合の列は右寄せ＝桁が揃って比較しやすい */
+.view-compare .table th.num,
+.view-compare .table td.num{
+  text-align:right;
+  white-space:nowrap;
+}
+
+/* 割合の横棒。数字だけより「突出したもの」が一目で分かる */
+.view-compare .cmp-ratio{
+  display:block;
+  width:100%;
+  min-width:60px;
+  height:10px;
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+}
+.view-compare .cmp-ratio > span{
+  display:block;
+  height:100%;
+  background:var(--accent-soft);
+  opacity:.7;
+}
+
+/* --- ③ モチーフ出現マップ --- */
+.view-compare .cmp-mo-actions{ margin-bottom:12px; }
+.view-compare .cmp-mo-band{ margin-bottom:16px; }
+.view-compare .cmp-mo-row{
+  display:flex;
+  gap:2px;
+  height:30px;
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+  padding:3px;
+}
+/* 1マス=1場面。作品内の順序がそのまま左→右になる＝再出現の間隔が見える */
+.view-compare .cmp-mo-cell{
+  flex:1 1 0;
+  min-width:0;                 /* 場面が多くても横スクロールさせない */
+  background:var(--rule);
+  opacity:.35;                 /* 出現しなかった場面＝薄いグレー */
+  border-radius:2px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+.view-compare .cmp-mo-cell.hit{
+  background:var(--accent-soft);
+  opacity:1;
+}
+/* 出現回数。マスが細いときは文字が入りきらないので溢れは切る（帯の形が主役）*/
+.view-compare .cmp-mo-n{
+  font-size:10px;
+  font-weight:700;
+  color:var(--card);
+  line-height:1;
+}
+
+/* --- 375px 対応の最終防波堤 --- */
+@media (max-width:600px){
+  .view-compare .cmp-pickers .field{ flex:1 1 100%; }
+  .view-compare .cmp-bar{ height:52px; }
+  .view-compare .cmp-basics .table th{ width:40%; }
+}
