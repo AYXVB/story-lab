@@ -221,6 +221,26 @@
       });
     }
 
+    // 軸の切替（緊張・推進・密度・情動）＋重ね表示。
+    // 「なぜここか」: renderTop のたびにHTMLを作り直すため、その直後に
+    // 結線し直す必要がある（init で1回だけでは新しいボタンに繋がらない）。
+    // ★これが抜けていてボタンが無反応だった（2026-07-20 修正）
+    var sw = els.top.querySelector(".axis-switch");
+    if (sw){
+      sw.addEventListener("click", function(ev){
+        var b = ev.target.closest("[data-axis]");
+        if (!b) return;
+        st.axis = b.getAttribute("data-axis");
+        st.overlay = false;          // 軸を選んだら単軸表示に戻す
+        render();
+      });
+      var ov = sw.querySelector("[data-axis-overlay]");
+      if (ov) ov.addEventListener("change", function(){
+        st.overlay = ov.checked;
+        render();
+      });
+    }
+
     // 密度トグル
     var dens = els.top.querySelector("#rd-density");
     if (dens){
