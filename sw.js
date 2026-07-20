@@ -9,7 +9,7 @@
    ========================================================================== */
 
 // 更新のたびに版を上げる（古い殻を確実に捨てさせるため）。
-var CACHE_NAME = "monogatari-shell-v1_7_0";
+var CACHE_NAME = "monogatari-shell-v2_0_0";
 
 // アプリの殻＝全て自前のファイル（外部CDN無しの設計がここで効く）
 var SHELL = [
@@ -56,19 +56,26 @@ self.addEventListener("fetch", function(ev){
   //   先頭一致でなく「/data/ を含み /js/data/ ではない」で判定する
   if (url.pathname.indexOf("/data/") !== -1 && url.pathname.indexOf("/js/data/") === -1) return;
 
-  // アプリの殻: キャッシュ優先＋裏でネットワーク更新（stale-while-revalidate）。
-  // 「なぜ」: オフラインで確実に開けることが最優先。更新は次回起動で効けばよい。
+  // アプリの殻: ★ネットワーク優先・失敗時のみキャッシュ（network falling back
+  // to cache）。
+  // 「なぜキャッシュ優先をやめたか」: 旧方式（stale-while-revalidate）は
+  // 古い画面を返しつつ裏で更新する方式のため、更新の反映に「リロード2回」が
+  // 必要で、実際に「新機能のボタンが見つからない」事故を繰り返した。
+  // オンラインなら常に最新を出し、オフラインのときだけ保存版で開く方が、
+  // 「アプリが古いまま動く」という最も分かりにくい不具合を根絶できる。
+  // （ローカル／自宅LANが前提なので、ネットワーク優先でも体感は速い）
   ev.respondWith(
-    caches.open(CACHE_NAME).then(function(cache){
-      return cache.match(req, { ignoreSearch: true }).then(function(cached){
-        var fetched = fetch(req).then(function(res){
-          if (res && res.ok) cache.put(req, res.clone());
-          return res;
-        }).catch(function(){ return null; });
-        // 画面遷移（navigate）でキャッシュに無ければ index.html で受ける
-        if (cached) { fetched.catch(function(){}); return cached; }
-        return fetched.then(function(res){
-          if (res) return res;
+    fetch(req).then(function(res){
+      if (res && res.ok){
+        var copy = res.clone();
+        caches.open(CACHE_NAME).then(function(cache){ cache.put(req, copy); });
+      }
+      return res;
+    }).catch(function(){
+      // オフライン（サーバー停止・電波なし）→ 保存版で開く
+      return caches.open(CACHE_NAME).then(function(cache){
+        return cache.match(req, { ignoreSearch: true }).then(function(cached){
+          if (cached) return cached;
           if (req.mode === "navigate") return cache.match("index.html");
           return new Response("", { status: 504 });
         });

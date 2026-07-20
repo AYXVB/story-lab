@@ -16,7 +16,8 @@
   var els = {};
 
   // 絞り込みの現在値（show をまたいで保持）
-  var filter = { length: "", reception: "", form: "", own: "" };
+  // 軸の絞り込み値（キーは AXIS_KEYS と同じ。own だけは軸でなく自作/名著の別）
+  var filter = { kind: "", length: "", reception: "", form: "", own: "" };
 
   // 編集中の作品id（null=新規登録モード）
   var editingId = null;
@@ -26,7 +27,14 @@
   var pendingGuideTagIds = [];
 
   // 軸キー→日本語ラベル（フォーム/絞り込みの見出しに使う）
-  var AXIS_LABELS = { length: "長さ", reception: "受容形態", form: "表現形式" };
+  // 軸の定義（ラベル）。★軸を増やすときはここに1行足すだけで
+  // 登録フォーム・絞り込み・カード表示すべてに反映される（データ駆動）。
+  // kind=種別 は「小説/詩/戯曲/映画…」の枠。他の3軸（長さ・受容形態・
+  // 表現形式）とは別の観点なので独立した軸として持つ（2026-07-19 追加）
+  var AXIS_LABELS = {
+    kind: "種別", length: "長さ", reception: "受容形態", form: "表現形式"
+  };
+  var AXIS_KEYS = Object.keys(AXIS_LABELS);
 
   /* ------------------------------------------------------------------
      初回1回だけ：静的な骨組み（絞り込み・一覧の器・登録フォーム）を作る
@@ -118,7 +126,7 @@
   function buildAxisSelects(prefix){
     var axisDefs = App.store.get().axisDefs || {};
     var html = "";
-    ["length","reception","form"].forEach(function(key){
+    AXIS_KEYS.forEach(function(key){
       var opts = (axisDefs[key] || []).map(function(v){
         return '<option value="' + App.util.esc(v) + '">' + App.util.esc(v) + '</option>';
       }).join("");
@@ -157,13 +165,15 @@
       '<option value="own"' + (filter.own === "own" ? " selected" : "") + '>自作のみ</option>' +
       '<option value="classic"' + (filter.own === "classic" ? " selected" : "") + '>名著のみ</option>';
 
+    // 軸の絞り込みは AXIS_KEYS から自動生成（軸を増やしても追随する）
+    var axisFilters = AXIS_KEYS.map(function(key){
+      return '<div class="field"><label for="flt-' + key + '">' + AXIS_LABELS[key] + '</label>' +
+        '<select class="select" id="flt-' + key + '" data-fkey="' + key + '">' +
+        optionSet(key) + '</select></div>';
+    }).join("");
+
     els.filters.innerHTML =
-      '<div class="field"><label for="flt-length">長さ</label>' +
-        '<select class="select" id="flt-length" data-fkey="length">' + optionSet("length") + '</select></div>' +
-      '<div class="field"><label for="flt-reception">受容形態</label>' +
-        '<select class="select" id="flt-reception" data-fkey="reception">' + optionSet("reception") + '</select></div>' +
-      '<div class="field"><label for="flt-form">表現形式</label>' +
-        '<select class="select" id="flt-form" data-fkey="form">' + optionSet("form") + '</select></div>' +
+      axisFilters +
       '<div class="field"><label for="flt-own">区分</label>' +
         '<select class="select" id="flt-own" data-fkey="own">' + ownOpts + '</select></div>' +
       '<div class="lib-filter-spacer"></div>' +
@@ -183,9 +193,11 @@
   function filteredWorks(){
     return App.store.get().works.filter(function(w){
       var axes = w.axes || {};
-      if (filter.length    && axes.length    !== filter.length)    return false;
-      if (filter.reception && axes.reception !== filter.reception) return false;
-      if (filter.form      && axes.form      !== filter.form)      return false;
+      // 軸の絞り込みは AXIS_KEYS を回す（軸を増やしても自動で効く）
+      for (var i = 0; i < AXIS_KEYS.length; i++){
+        var k = AXIS_KEYS[i];
+        if (filter[k] && axes[k] !== filter[k]) return false;
+      }
       if (filter.own === "own"     && !w.isOwn) return false;
       if (filter.own === "classic" &&  w.isOwn) return false;
       return true;
@@ -228,7 +240,7 @@
     var html = '<div class="lib-grid">';
     works.forEach(function(w){
       var axes = w.axes || {};
-      var axisChips = ["length","reception","form"].map(function(k){
+      var axisChips = AXIS_KEYS.map(function(k){
         return axes[k] ? '<span class="axis-chip">' + App.util.esc(axes[k]) + '</span>' : "";
       }).join("");
       var meta = [];
@@ -331,11 +343,12 @@
       author: els.fAuthor.value.trim(),
       year: els.fYear.value.trim(),
       isOwn: !!els.fIsOwn.checked,
-      axes: {
-        length:    readAxisSelect("lf", "length"),
-        reception: readAxisSelect("lf", "reception"),
-        form:      readAxisSelect("lf", "form")
-      },
+      // 軸は AXIS_KEYS から動的に読む（軸を増やしても保存に追随する）
+      axes: (function(){
+        var a = {};
+        AXIS_KEYS.forEach(function(k){ a[k] = readAxisSelect("lf", k); });
+        return a;
+      })(),
       note: els.fNote.value.trim()
     };
 
@@ -395,7 +408,7 @@
     if (!els.fAuthor.value.trim() && hit.author) els.fAuthor.value = hit.author;
     if (!els.fYear.value.trim() && hit.year) els.fYear.value = String(hit.year);
     var axes = hit.axes || {};
-    ["length","reception","form"].forEach(function(k){
+    AXIS_KEYS.forEach(function(k){
       var el = els.form.querySelector("#lf-" + k);
       if (el && axes[k] && !el.value) el.value = axes[k];
     });
@@ -447,7 +460,7 @@
     els.fIsOwn.checked= !!w.isOwn;
     els.fNote.value   = w.note || "";
     var axes = w.axes || {};
-    ["length","reception","form"].forEach(function(k){
+    AXIS_KEYS.forEach(function(k){
       var el = els.form.querySelector("#lf-" + k);
       if (el) el.value = axes[k] || "";
     });

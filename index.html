@@ -31,7 +31,10 @@
   <div class="app-header__bar">
     <div class="app-header__titles">
       <h1>物語研究室</h1>
-      <div class="sub">作品を分解し、技法と効果を目録化する — 索引カードの書庫</div>
+      <!-- 版番号: 更新が反映されたかを一目で確認するための表示。
+           app.js の APP_VERSION と対で、古い画面のまま気づかない事故を防ぐ -->
+      <div class="sub">作品を分解し、技法と効果を目録化する — 索引カードの書庫
+        <span id="app-version" class="app-version"></span></div>
     </div>
     <!-- データ書き出し/読み込み（スマホ移植3条件の②）。中身は app.js が結線 -->
     <div class="app-header__actions">
@@ -40,6 +43,12 @@
       <!-- Discord Webhook 同期便: バックアップJSONを自分のDiscordへ送る。
            送信先URLは端末内(settings)に保存され、公開コードには含まれない -->
       <button type="button" id="btn-discord" class="btn btn--ghost">☁ Discordへ送る</button>
+      <!-- 取り込みはPC専用（Botトークンを扱うためlocalhostのみ。app.jsが表示制御） -->
+      <button type="button" id="btn-discord-import" class="btn btn--ghost" hidden>⇊ Discordから取り込み</button>
+      <!-- PCのフォルダ(data/research-data.json)から取り込む。Claudeがデータを
+           直接編集したときに、それをアプリへ反映するための窓口 -->
+      <button type="button" id="btn-folder-import" class="btn btn--ghost" hidden
+              title="PCのフォルダに保存されている研究データを読み込みます">⟳ フォルダから取り込み</button>
       <button type="button" id="btn-discord-config" class="btn btn--ghost btn--sm" title="送信先Webhookの設定">⚙</button>
       <!-- 読み込みは file 入力経由。非表示にしてボタンから発火する -->
       <input type="file" id="import-file" accept="application/json,.json" hidden>

@@ -67,6 +67,10 @@
   var currentViewId = null;
   var booted = false;     // DOMContentLoaded 前に showView されない保険
 
+  // アプリの版。機能を足したらここを上げる（画面右上に小さく表示され、
+  // 「更新が反映されているか」を目で確認できる＝古い画面のまま気づかない事故を防ぐ）
+  var APP_VERSION = "v2.0";
+
   /** ビュー登録。各ビューJSがファイル末尾で呼ぶ */
   App.registerView = function(def){
     if (!def || !def.id){
@@ -311,6 +315,146 @@
       });
   }
 
+  /* ------------------------------------------------------------------
+     Discord自動取り込み（PC専用）
+     サーバー(server.py)がBotトークンでチャンネルの最新バックアップを
+     取得し、ここで「取り込みますか？」を確認してから全置換で反映する。
+     なぜ確認を挟むか: 取り込みは全置換＝PC側の未送信の変更が消えるため、
+     日時とファイル名を見せて人が判断する（黙って上書きしない）。
+     ------------------------------------------------------------------ */
+
+  /**
+   * Bot設定（トークン・チャンネルID）の入力。
+   * current: サーバーから取得した現在の設定（channelId のみ。トークンは
+   * 秘密なので送り返さない）。既存値を初期値にして「片方だけ直す」を可能にする。
+   * 「なぜ再設定できることが重要か」: 貼り間違いは普通に起きる。
+   * 初回しか入力できない作りだと、間違えた瞬間に詰む（実際に詰んだ）。
+   */
+  function setupDiscordImport(next, current){
+    current = current || {};
+    var token = window.prompt(
+      "DiscordのBotトークンを貼り付けてください。\n" +
+      "（作り方は フォルダ内の「Discord取り込み設定.txt」参照。\n" +
+      "  トークンはこのPCの中だけに保存され、外へは出ません）\n" +
+      (current.hasToken ? "※現在すでに保存されています。入れ直すと上書きします。" : ""));
+    if (token === null || !token.trim()) return;
+    var channel = window.prompt(
+      "バックアップを送っているチャンネルのIDを貼り付けてください。\n" +
+      "（Discordの設定→詳細設定→開発者モードON→チャンネル右クリック→IDをコピー）",
+      current.channelId || "");
+    if (channel === null || !channel.trim()) return;
+    window.fetch("/discord-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Monogatari-Save": "1" },
+      body: JSON.stringify({ botToken: token.trim(), channelId: channel.trim() })
+    }).then(function(res){ return res.json(); })
+      .then(function(r){
+        if (r.ok){ if (next) next(); }
+        else window.alert("設定に失敗: " + (r.error || "不明なエラー"));
+      })
+      .catch(function(){ window.alert("設定の保存に失敗しました（サーバー未起動？）"); });
+  }
+
+  /** 現在の設定を取得してから設定画面を開く（設定し直し用の入口）*/
+  function reconfigureDiscordImport(next){
+    window.fetch("/discord-config", { headers: { "X-Monogatari-Save": "1" } })
+      .then(function(res){ return res.json(); })
+      .catch(function(){ return {}; })
+      .then(function(cur){ setupDiscordImport(next, cur); });
+  }
+
+  /**
+   * PCのフォルダ(data/research-data.json)からアプリへ取り込む。
+   * なぜ必要か: 自動復元は「localStorageが空のとき」だけ働くため、
+   * Claudeがフォルダのデータを直接編集しても、すでに使っているアプリには
+   * 届かない（実際に「修正が反映されない」事故が起きた）。
+   * 全置換なので、中身（作品数など）を見せて人が判断してから反映する。
+   */
+  function importFromFolder(){
+    window.fetch("data/research-data.json", { cache: "no-store" })
+      .then(function(res){
+        if (!res.ok) throw new Error("not found");
+        return res.json();
+      })
+      .then(function(saved){
+        var w = (saved.works || []).length;
+        var q = (saved.quotes || []).length;
+        var n = (saved.nodes || []).length;
+        var el = (saved.elements || []).length;
+        var cur = App.store.get();
+        var ok = window.confirm(
+          "PCのフォルダに保存されている研究データを取り込みますか？\n\n" +
+          "【フォルダ側】作品 " + w + " ／ 場面 " + n + " ／ 一節 " + q + " ／ 人物・設定 " + el + "\n" +
+          "【いま画面】作品 " + cur.works.length + " ／ 場面 " + cur.nodes.length +
+          " ／ 一節 " + cur.quotes.length + " ／ 人物・設定 " + (cur.elements || []).length + "\n\n" +
+          "⚠ いま画面のデータはすべて置き換えられます。");
+        if (!ok) return;
+        var r = App.store.importJson(JSON.stringify(saved));
+        if (r.ok){
+          window.alert("取り込みました。");
+          if (currentViewId) App.showView(currentViewId);
+        } else {
+          window.alert("取り込みに失敗しました:\n" + r.error);
+        }
+      })
+      .catch(function(){
+        window.alert("フォルダのデータを読めませんでした。\n" +
+                     "（物語研究室起動.bat で起動していますか？）");
+      });
+  }
+
+  /** retried=true なら「設定し直し後の再試行」＝これ以上は自動再試行しない */
+  function importFromDiscord(retried){
+    window.fetch("/discord-inbox", { headers: { "X-Monogatari-Save": "1" } })
+      .then(function(res){ return res.json(); })
+      .then(function(r){
+        if (!r.ok && r.error === "unconfigured"){
+          // 初回＝Botの設定から（設定できたらそのまま取り込みを再試行）
+          reconfigureDiscordImport(retried ? null : function(){
+            importFromDiscord(true);
+          });
+          return;
+        }
+        if (!r.ok){
+          // ★設定ミス（トークン無効・権限不足・チャンネルID違い）は
+          //   その場で入れ直せるようにする。従来はalertだけで詰んでいた。
+          //   再設定後の自動再試行は1回だけ（間違いが続くと「失敗→再設定→
+          //   失敗…」の無限ループになるため。2回目からは手動で押し直す）
+          var canFix = window.confirm(
+            "取り込みに失敗しました:\n" + r.error + "\n\n" +
+            "Botトークン／チャンネルIDを設定し直しますか？");
+          if (canFix){
+            reconfigureDiscordImport(retried ? null : function(){
+              importFromDiscord(true);
+            });
+          }
+          return;
+        }
+        if (!r.found){ window.alert(r.hint || "バックアップが見つかりませんでした。"); return; }
+        var s = App.store.get().settings;
+        var already = (s.lastDiscordImportId === r.messageId);
+        var when = r.timestamp ? r.timestamp.replace("T", " ").slice(0, 16) : "日時不明";
+        var ok = window.confirm(
+          (already ? "【取り込み済みの版です】\n" : "") +
+          "Discordの最新バックアップを取り込みますか？\n" +
+          "・ファイル: " + r.filename + "\n" +
+          "・送信日時: " + when + "\n" +
+          "⚠ 現在のデータはすべて置き換えられます。");
+        if (!ok) return;
+        var result = App.store.importJson(JSON.stringify(r.data));
+        if (result.ok){
+          var s2 = App.store.get().settings;
+          s2.lastDiscordImportId = r.messageId;
+          App.store.save();
+          window.alert("取り込みました。");
+          if (currentViewId) App.showView(currentViewId);
+        } else {
+          window.alert("取り込みに失敗しました:\n" + result.error);
+        }
+      })
+      .catch(function(){ window.alert("サーバーに接続できません（物語研究室起動.bat で起動していますか？）"); });
+  }
+
   /**
    * Service Worker の登録（オフライン対応＝スマホで「どこでも」の土台）。
    * secure context（https または localhost）でのみ動く仕様のため、
@@ -322,7 +466,20 @@
     var secure = loc.protocol === "https:" ||
                  loc.hostname === "localhost" || loc.hostname === "127.0.0.1";
     if (!secure) return;
-    navigator.serviceWorker.register("sw.js").catch(function(e){
+    navigator.serviceWorker.register("sw.js").then(function(reg){
+      // 毎回 update を促し、新しい版が来たら即座に有効化して1度だけ再読込する。
+      // 「なぜ」: 旧方式では更新の反映に手動リロード2回が必要で、
+      // 新機能が見えない事故が続いた。ここで自動的に最新へ揃える
+      reg.update();
+      if (navigator.serviceWorker.controller){
+        var refreshed = false;
+        navigator.serviceWorker.addEventListener("controllerchange", function(){
+          if (refreshed) return;       // 無限リロード防止
+          refreshed = true;
+          window.location.reload();
+        });
+      }
+    }).catch(function(e){
       // 登録失敗でもアプリは通常動作する（オフライン対応が無いだけ）
       if (window.console) console.warn("ServiceWorker登録に失敗:", e);
     });
@@ -340,6 +497,10 @@
   });
 
   function boot(){
+    // 版番号を表示（更新の反映を目視確認するため）
+    var verEl = document.getElementById("app-version");
+    if (verEl) verEl.textContent = APP_VERSION;
+
     // 2) ナビ生成（この時点で全ビューJSの registerView が完了している）
     booted = true;
     buildNav();
@@ -372,7 +533,38 @@
     var btnDiscord = document.getElementById("btn-discord");
     var btnDiscordCfg = document.getElementById("btn-discord-config");
     if (btnDiscord) btnDiscord.addEventListener("click", sendBackupToDiscord);
-    if (btnDiscordCfg) btnDiscordCfg.addEventListener("click", configureDiscordWebhook);
+    if (btnDiscordCfg){
+      btnDiscordCfg.addEventListener("click", function(){
+        // PC（localhost）では送信・取り込みの両方があるので、どちらの設定かを選ばせる。
+        // スマホ／公開版には取り込みが無いので、そのままWebhook設定へ
+        var isPc = (location.hostname === "localhost" || location.hostname === "127.0.0.1");
+        if (!isPc){ configureDiscordWebhook(); return; }
+        var toImport = window.confirm(
+          "どちらの設定をしますか？\n\n" +
+          "［OK］取り込みの設定（Botトークン・チャンネルID）\n" +
+          "［キャンセル］送信の設定（Webhook URL）");
+        if (toImport) reconfigureDiscordImport();
+        else configureDiscordWebhook();
+      });
+    }
+
+    // Discord自動取り込み（PC専用: Botトークンを扱うため localhost のみ表示。
+    // スマホや公開版では隠れたまま＝押せない）
+    var btnImport2 = document.getElementById("btn-discord-import");
+    if (btnImport2 &&
+        (location.hostname === "localhost" || location.hostname === "127.0.0.1")){
+      btnImport2.hidden = false;
+      // click イベントの第1引数(Event)が retried に入らないよう包む
+      btnImport2.addEventListener("click", function(){ importFromDiscord(false); });
+    }
+
+    // フォルダから取り込み（サーバー経由のときだけ意味があるので http/https 限定）
+    var btnFolder = document.getElementById("btn-folder-import");
+    if (btnFolder &&
+        (location.protocol === "http:" || location.protocol === "https:")){
+      btnFolder.hidden = false;
+      btnFolder.addEventListener("click", importFromFolder);
+    }
     if (btnImport && fileInput){
       btnImport.addEventListener("click", function(){
         fileInput.value = "";   // 同じファイルを2回選んでも change が発火するように
