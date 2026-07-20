@@ -33,6 +33,39 @@
   // タグのカテゴリ順（追加セレクトの optgroup 並び）
   var TAG_CATEGORIES = ["構成", "演出", "言葉遣い", "効果"];
 
+  /* ------------------------------------------------------------------
+     場面の軸（緊張・推進・密度・情動）— 定義は data/scene-axes.js が真実。
+     「なぜハードコードしないか」: 研究が進めば軸は増える／変わる。ここで
+     配列を持つと分解・通読・比較で定義がズレる（＝同じ棒が別の意味になる）。
+     ★scene-axes.js が読み込まれていない環境でも落ちないよう、従来どおり
+     「緊張だけ」で動く保険を持たせる（後方互換）。
+     ------------------------------------------------------------------ */
+  var AXIS_FALLBACK = [
+    { key: "tension", label: "緊張", hint: "", color: "var(--accent)" }
+  ];
+  function axisDefs(){
+    var defs = (window.App && window.App.sceneAxes) || [];
+    return (defs && defs.length) ? defs : AXIS_FALLBACK;
+  }
+  /** 軸キー → 定義（不明キーなら先頭軸へ落とす＝壊れた状態を残さない）*/
+  function axisDef(key){
+    var defs = axisDefs();
+    for (var i = 0; i < defs.length; i++){ if (defs[i].key === key) return defs[i]; }
+    return defs[0];
+  }
+  /** その軸が未記入か（null/undefined/空文字/数値でない を等しく「なし」とみなす）。
+      ★既存132場面は tension のみ入っており drive/density/emotion は null。
+      「0」と「未記入」は意味が違う（0＝測って低い／null＝測っていない）ので必ず区別する。 */
+  function isAxisNull(n, key){
+    var v = n ? n[key] : null;
+    return (v === null || v === undefined || v === "" || isNaN(Number(v)));
+  }
+  function axisVal(n, key){ return Math.max(0, Math.min(100, Number(n[key]))); }
+
+  // 構成バーの表示状態（保存しない＝見方の一時的な好み。データではない）
+  var arcAxis = (window.App && App.sceneAxisDefault) || "tension";
+  var arcOverlay = false;      // true=4軸を1つのグラフに重ねて見る
+
   /* ==================================================================
      初回1回だけ：静的な骨組み（タイトル・作品セレクタ・本体の器）
      ★root.className は上書きせず classList.add のみ（設計 §2 の既知バグ対策）
@@ -248,29 +281,29 @@
 
     if (scenes.length === 0){
       els.arc.innerHTML =
-        '<div class="arc-title">構成バー（緊張度の起伏）</div>' +
-        '<div class="arc-empty">場面（type=場面）を追加すると、緊張度の起伏がここに並びます。</div>';
+        '<div class="arc-title">構成バー（場面の起伏）</div>' +
+        '<div class="arc-empty">場面（type=場面）を追加すると、場面の起伏がここに並びます。</div>';
       return;
     }
 
-    var bars = "", labels = "";
+    var def = axisDef(arcAxis);
+    arcAxis = def.key;                        // 不明キーの自己修復
+    var title = arcOverlay
+      ? "構成バー（4軸を重ねて表示・全" + scenes.length + "場面／棒クリックで選択）"
+      : "構成バー（" + def.label + "の起伏・全" + scenes.length + "場面／棒クリックで選択）";
+
+    var labels = "";
     scenes.forEach(function(n, i){
-      var isNull = (n.tension === null || n.tension === undefined || n.tension === "");
-      // null は低い灰色棒で「値未設定＝停滞に見える箇所」を可視化（min 8%）
-      var h = isNull ? 8 : Math.max(4, Math.min(100, Number(n.tension)));
-      var cls = "arc-seg" + (isNull ? " is-null" : "") +
-                (n.id === currentNodeId ? " current" : "");
-      var title = App.util.esc(n.title || "") + (isNull ? "（緊張度なし）" : "（" + h + "）");
-      bars += '<div class="' + cls + '" style="height:' + h + '%" ' +
-              'data-scene="' + App.util.esc(n.id) + '" title="' + title + '"></div>';
       var pol = polSign(n.polarity);
       labels += '<div class="arc-lab">' + (i + 1) +
                 (pol ? '<span class="arc-pol">' + pol + '</span>' : "") + '</div>';
     });
 
     els.arc.innerHTML =
-      '<div class="arc-title">構成バー（緊張度の起伏・全' + scenes.length + '場面／棒クリックで選択）</div>' +
-      '<div class="arc-bar">' + bars + '</div>' +
+      '<div class="arc-title">' + App.util.esc(title) + '</div>' +
+      axisSwitchHtml(arcAxis, arcOverlay) +
+      (arcOverlay ? overlayBarHtml(scenes, currentNodeId)
+                  : singleBarHtml(scenes, def, currentNodeId)) +
       '<div class="arc-labels">' + labels + '</div>';
 
     // 棒クリックでその場面を選択
@@ -278,6 +311,103 @@
       var seg = ev.target.closest("[data-scene]");
       if (seg) selectNode(seg.getAttribute("data-scene"));
     });
+    bindAxisSwitch(els.arc, function(key, overlay){
+      arcAxis = key; arcOverlay = overlay;
+      renderArc();                            // グラフだけ描き直す（入力欄は触らない）
+    });
+  }
+
+  /* ------------------------------------------------------------------
+     軸の切替UI（分解・通読で同じ見た目・同じ操作にする）
+     ★375px 対応: ボタンは flex-wrap で折り返し、横スクロールを出さない。
+     ------------------------------------------------------------------ */
+  function axisSwitchHtml(activeKey, overlay){
+    var btns = axisDefs().map(function(a){
+      var on = (!overlay && a.key === activeKey);
+      // 選択中は色で示す（色だけに頼らず aria-pressed と枠でも示す）
+      var style = on ? ' style="border-color:' + a.color + ';color:' + a.color + '"' : "";
+      return '<button type="button" class="axis-btn' + (on ? " is-on" : "") + '"' +
+             ' data-axis="' + App.util.esc(a.key) + '"' +
+             ' aria-pressed="' + (on ? "true" : "false") + '"' + style + '>' +
+             App.util.esc(a.label) + '</button>';
+    }).join("");
+    var hint = overlay ? "" :
+      '<div class="axis-hint">' + App.util.esc(axisDef(activeKey).hint || "") + '</div>';
+    return '<div class="axis-switch">' +
+             '<div class="axis-btns">' + btns + '</div>' +
+             '<label class="axis-overlay"><input type="checkbox" data-axis-overlay' +
+               (overlay ? " checked" : "") + '> 重ねて見る</label>' +
+           '</div>' +
+           (overlay ? axisLegendHtml() : "") + hint;
+  }
+
+  /** 重ね表示の凡例（どの色がどの軸かを必ず出す＝色だけでは読めないため）*/
+  function axisLegendHtml(){
+    var items = axisDefs().map(function(a){
+      return '<span class="axis-legend__item">' +
+               '<i class="axis-legend__swatch" style="background:' + a.color + '"></i>' +
+               App.util.esc(a.label) +
+             '</span>';
+    }).join("");
+    return '<div class="axis-legend">' + items + '</div>';
+  }
+
+  function bindAxisSwitch(root, onChange){
+    var sw = root.querySelector(".axis-switch");
+    if (!sw) return;
+    sw.addEventListener("click", function(ev){
+      var b = ev.target.closest("[data-axis]");
+      if (!b) return;
+      onChange(b.getAttribute("data-axis"), false);   // 軸を選んだら単軸表示に戻す
+    });
+    var cb = sw.querySelector("[data-axis-overlay]");
+    if (cb) cb.addEventListener("change", function(){
+      onChange(arcAxis, cb.checked);
+    });
+  }
+
+  /* 単軸の棒（従来の見た目を踏襲。色だけ軸ごとに変える）*/
+  function singleBarHtml(scenes, def, currentId){
+    var bars = scenes.map(function(n){
+      var empty = isAxisNull(n, def.key);
+      var cur = (currentId && n.id === currentId) ? " current" : "";
+      var t = App.util.esc(n.title || "");
+      if (empty){
+        // ★未記入は「低い灰色棒」ではなく点線枠にする。
+        // 「なぜ」: 多軸では未記入の軸が普通にある。0（測って低い）と同じ見た目に
+        // すると「静かな場面」と「まだ測っていない場面」が区別できず研究が濁る。
+        return '<div class="arc-seg is-empty' + cur + '" ' +
+               'data-scene="' + App.util.esc(n.id) + '" ' +
+               'title="' + t + '（' + App.util.esc(def.label) + ' 未記入）"></div>';
+      }
+      var v = axisVal(n, def.key);
+      return '<div class="arc-seg' + cur + '" style="height:' + Math.max(4, v) + '%;' +
+             'background:' + def.color + '" ' +
+             'data-scene="' + App.util.esc(n.id) + '" ' +
+             'title="' + t + '（' + App.util.esc(def.label) + ' ' + v + '）"></div>';
+    }).join("");
+    return '<div class="arc-bar">' + bars + '</div>';
+  }
+
+  /* 重ね表示：場面ごとに4本の細い棒を並べる（折れ線より狭幅で崩れにくい）*/
+  function overlayBarHtml(scenes, currentId){
+    var defs = axisDefs();
+    var groups = scenes.map(function(n){
+      var cur = (currentId && n.id === currentId) ? " current" : "";
+      var inner = defs.map(function(a){
+        if (isAxisNull(n, a.key)){
+          return '<i class="arc-mini is-empty" title="' +
+                 App.util.esc(a.label) + ' 未記入"></i>';
+        }
+        var v = axisVal(n, a.key);
+        return '<i class="arc-mini" style="height:' + Math.max(3, v) + '%;' +
+               'background:' + a.color + '" title="' +
+               App.util.esc(a.label) + ' ' + v + '"></i>';
+      }).join("");
+      return '<div class="arc-group' + cur + '" data-scene="' + App.util.esc(n.id) + '" ' +
+             'title="' + App.util.esc(n.title || "") + '">' + inner + '</div>';
+    }).join("");
+    return '<div class="arc-bar arc-bar--overlay">' + groups + '</div>';
   }
 
   /** 極性文字列から下ラベル用の記号（+ / − / =）を導く */
@@ -403,7 +533,7 @@
     var workId = currentWorkId();
     var type = els.tree.querySelector("#ana-add-type").value;
     var parentId = currentNodeId || null;
-    var node = App.store.add("nodes", {
+    var fields = {
       workId: workId,
       parentId: parentId,
       order: nextOrder(workId, parentId),
@@ -419,7 +549,10 @@
       polarity: null,
       commandments: [],
       fullText: null
-    });
+    };
+    // 4軸はすべて null（＝未記入）で作る。定義から回すので軸が増えても追随する
+    axisDefs().forEach(function(a){ fields[a.key] = null; });
+    var node = App.store.add("nodes", fields);
     currentNodeId = node.id;   // 追加した節を選択状態に
     renderBody();
   }
@@ -456,9 +589,6 @@
       return '<option value="' + t + '"' + (n.type === t ? " selected" : "") + '>' + t + '</option>';
     }).join("");
 
-    var tensionNull = (n.tension === null || n.tension === undefined || n.tension === "");
-    var tensionVal = tensionNull ? 50 : Number(n.tension);
-
     var polOpts = POLARITY_OPTS.map(function(p){
       var label = p === "" ? "（未設定）" : p;
       return '<option value="' + App.util.esc(p) + '"' + ((n.polarity || "") === p ? " selected" : "") +
@@ -482,17 +612,8 @@
             '<label for="ed-type">種別</label>' +
             '<select class="select" id="ed-type">' + typeOpts + '</select>' +
           '</div>' +
-          '<div class="field">' +
-            '<label>緊張度（0〜100・停滞は「なし」）</label>' +
-            '<div class="ed-tension">' +
-              '<input type="range" min="0" max="100" step="1" id="ed-tension" value="' + tensionVal + '"' +
-                (tensionNull ? " disabled" : "") + '>' +
-              '<span class="ten-val" id="ed-ten-val">' + (tensionNull ? "なし" : tensionVal) + '</span>' +
-              '<label style="font-size:12px;"><input type="checkbox" id="ed-ten-null"' +
-                (tensionNull ? " checked" : "") + '> なし</label>' +
-            '</div>' +
-          '</div>' +
         '</div>' +
+        axisFieldsHtml(n) +
         '<div class="field">' +
           '<label for="ed-summary">要約</label>' +
           '<textarea class="textarea" id="ed-summary">' + App.util.esc(n.summary || "") + '</textarea>' +
@@ -546,6 +667,35 @@
     bindEditor(n.id);
   }
 
+  /** 場面の軸（4本のスライダー）。
+      「なぜ4本か」: 緊張1本だと「静かで濃い場面」がすべて谷に見え、Scene and Sequel
+      でいうシークエル（反応・逡巡・決断）を評価できない。軸ごとに「なし(null)」を
+      選べるのは、測っていないことと 0 を区別するため。 */
+  function axisFieldsHtml(n){
+    var rows = axisDefs().map(function(a){
+      var empty = isAxisNull(n, a.key);
+      var v = empty ? 50 : axisVal(n, a.key);     // 未記入は中央から始める
+      var id = "ed-ax-" + a.key;
+      return '<div class="ed-axis" data-axis-field="' + App.util.esc(a.key) + '">' +
+               '<div class="ed-axis__head">' +
+                 '<label class="ed-axis__label" for="' + id + '" ' +
+                   'style="color:' + a.color + '">' + App.util.esc(a.label) + '</label>' +
+                 '<span class="ed-axis__val" data-axis-val>' +
+                   (empty ? "なし" : v) + '</span>' +
+                 '<label class="ed-axis__null"><input type="checkbox" data-axis-null' +
+                   (empty ? " checked" : "") + '> なし</label>' +
+               '</div>' +
+               '<input type="range" min="0" max="100" step="1" id="' + id + '" ' +
+                 'data-axis-range value="' + v + '"' + (empty ? " disabled" : "") + '>' +
+               (a.hint ? '<div class="ed-axis__hint">' + App.util.esc(a.hint) + '</div>' : "") +
+             '</div>';
+    }).join("");
+    return '<div class="field ed-axes">' +
+             '<label>場面の軸（各 0〜100・測っていないものは「なし」）</label>' +
+             rows +
+           '</div>';
+  }
+
   /** 研究記録に1つでも値があるか（初期表示で details を開くかの判定）*/
   function hasResearch(n){
     return !!(n.valueStart || n.valueEnd || n.polarity ||
@@ -557,21 +707,26 @@
     var e = els.editor;
     // 現在のノードから編集内容を読み取り patch を作って保存する
     function collect(){
-      var tenNull = e.querySelector("#ed-ten-null").checked;
       var cmds = [];
       e.querySelectorAll(".ed-cmd").forEach(function(cb){ if (cb.checked) cmds.push(cb.value); });
-      return {
+      var patch = {
         title: e.querySelector("#ed-title").value.trim(),
         type: e.querySelector("#ed-type").value,
         summary: e.querySelector("#ed-summary").value,
         quoteText: e.querySelector("#ed-quote").value,
         quoteRef: e.querySelector("#ed-quoteref").value.trim(),
-        tension: tenNull ? null : Number(e.querySelector("#ed-tension").value),
         valueStart: e.querySelector("#ed-vstart").value.trim() || null,
         valueEnd: e.querySelector("#ed-vend").value.trim() || null,
         polarity: e.querySelector("#ed-polarity").value || null,
         commandments: cmds
       };
+      // 軸は定義（scene-axes.js）から引いて動的に詰める＝軸が増えても collect は不変
+      e.querySelectorAll("[data-axis-field]").forEach(function(box){
+        var key = box.getAttribute("data-axis-field");
+        var isNull = box.querySelector("[data-axis-null]").checked;
+        patch[key] = isNull ? null : Number(box.querySelector("[data-axis-range]").value);
+      });
+      return patch;
     }
     function save(){
       if (App.store.byId("nodes", nodeId)) App.store.update("nodes", nodeId, collect());
@@ -592,17 +747,20 @@
       save(); renderTree(); renderArc();
     });
 
-    // 緊張度スライダー：動かすたびラベル更新、離したら保存＋バー反映
-    var range = e.querySelector("#ed-tension");
-    var val   = e.querySelector("#ed-ten-val");
-    var nullCb= e.querySelector("#ed-ten-null");
-    range.addEventListener("input", function(){ val.textContent = range.value; });
-    range.addEventListener("change", function(){ save(); renderArc(); });
-    nullCb.addEventListener("change", function(){
-      // 「なし」= 停滞可視化のため tension を null に。ONでスライダー無効化
-      range.disabled = nullCb.checked;
-      val.textContent = nullCb.checked ? "なし" : range.value;
-      save(); renderArc();
+    // 軸スライダー（4本）：動かすたびラベル更新、離したら保存＋構成バー反映。
+    // ★renderEditor は呼ばない（入力中の欄が飛ぶため。従来の原則を踏襲）
+    e.querySelectorAll("[data-axis-field]").forEach(function(box){
+      var range  = box.querySelector("[data-axis-range]");
+      var val    = box.querySelector("[data-axis-val]");
+      var nullCb = box.querySelector("[data-axis-null]");
+      range.addEventListener("input", function(){ val.textContent = range.value; });
+      range.addEventListener("change", function(){ save(); renderArc(); });
+      nullCb.addEventListener("change", function(){
+        // 「なし」＝その軸は測っていない（null）。ONでスライダーを無効化する
+        range.disabled = nullCb.checked;
+        val.textContent = nullCb.checked ? "なし" : range.value;
+        save(); renderArc();
+      });
     });
 
     // 極性：即保存＋バー（下の +/− 記号が変わる）

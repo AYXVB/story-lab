@@ -21,7 +21,38 @@
   /* 表示の調整（保存はしない＝読むための一時的な好み。設計上データに残す価値が
      無く、localStorage を汚さない方が読み取り専用の性格に合う）。
      density: "summary"（要約のみ）/ "quote"（引用も見る・既定）/ "research"（研究記録も） */
-  var st = { density: "quote" };
+  var st = {
+    density: "quote",
+    // 構成バーで見ている軸と重ね表示（表示の好みなので保存しない）
+    axis: (window.App && App.sceneAxisDefault) || "tension",
+    overlay: false
+  };
+
+  /* ------------------------------------------------------------------
+     場面の軸（緊張・推進・密度・情動）— 定義は data/scene-axes.js が真実。
+     「なぜここでも書くか」: このビューは読み取り専用で anatomy.js の内部関数に
+     触れられない（公開APIが無い）。ただし定義そのものは必ず App.sceneAxes から
+     読む＝軸の一覧・色・順序が分解とズレることは無い。
+     ★scene-axes.js が無い環境でも従来どおり「緊張だけ」で動く（後方互換）。
+     ------------------------------------------------------------------ */
+  var AXIS_FALLBACK = [
+    { key: "tension", label: "緊張", hint: "", color: "var(--accent)" }
+  ];
+  function axisDefs(){
+    var defs = (window.App && window.App.sceneAxes) || [];
+    return (defs && defs.length) ? defs : AXIS_FALLBACK;
+  }
+  function axisDef(key){
+    var defs = axisDefs();
+    for (var i = 0; i < defs.length; i++){ if (defs[i].key === key) return defs[i]; }
+    return defs[0];
+  }
+  /** その軸が未記入か（0＝測って低い、と厳密に区別する）*/
+  function isAxisNull(n, key){
+    var v = n ? n[key] : null;
+    return (v === null || v === undefined || v === "" || isNaN(Number(v)));
+  }
+  function axisVal(n, key){ return Math.max(0, Math.min(100, Number(n[key]))); }
 
   // 密度トグルの選択肢（値・ラベル・そのモードで見えるもの）
   var DENSITY_OPTS = [
@@ -244,29 +275,104 @@
     return html;
   }
 
-  /** 緊張度カーブ（anatomy の構成バーと同じ考え方。ここでは棒＝該当場面への移動）*/
+  /** 構成カーブ（anatomy の構成バーと同じ考え方。ここでは棒＝該当場面への移動）*/
   function arcHtml(workId){
     var scenes = scenesInOrder(workId);
     if (scenes.length === 0) return "";
 
-    var bars = "", labels = "";
+    var def = axisDef(st.axis);
+    st.axis = def.key;                        // 不明キーの自己修復
+    var title = st.overlay
+      ? "構成カーブ（4軸を重ねて表示・全" + scenes.length + "場面／棒をタップでその場面へ移動）"
+      : def.label + "カーブ（全" + scenes.length + "場面／棒をタップでその場面へ移動）";
+
+    var labels = "";
     scenes.forEach(function(n, i){
-      var isNull = isTensionNull(n);
-      // null は低い灰色棒（値未設定＝起伏を語れない箇所）として見せる
-      var h = isNull ? 8 : Math.max(4, Math.min(100, Number(n.tension)));
-      var title = App.util.esc(n.title || "") + (isNull ? "（緊張度なし）" : "（" + h + "）");
-      bars += '<div class="arc-seg' + (isNull ? " is-null" : "") + '" style="height:' + h + '%" ' +
-              'data-scene="' + App.util.esc(n.id) + '" title="' + title + '"></div>';
       var pol = polSign(n.polarity);
       labels += '<div class="arc-lab">' + (i + 1) +
                 (pol ? '<span class="arc-pol">' + pol + '</span>' : "") + '</div>';
     });
 
     return '<div class="arc-wrap rd-arc">' +
-      '<div class="arc-title">緊張度カーブ（全' + scenes.length + '場面／棒をタップでその場面へ移動）</div>' +
-      '<div class="arc-bar">' + bars + '</div>' +
+      '<div class="arc-title">' + App.util.esc(title) + '</div>' +
+      axisSwitchHtml(st.axis, st.overlay) +
+      (st.overlay ? overlayBarHtml(scenes) : singleBarHtml(scenes, def)) +
       '<div class="arc-labels">' + labels + '</div>' +
       '</div>';
+  }
+
+  /* 軸の切替UI（分解ビューと同じ見た目・同じ操作＝迷わないように揃える）*/
+  function axisSwitchHtml(activeKey, overlay){
+    var btns = axisDefs().map(function(a){
+      var on = (!overlay && a.key === activeKey);
+      var style = on ? ' style="border-color:' + a.color + ';color:' + a.color + '"' : "";
+      return '<button type="button" class="axis-btn' + (on ? " is-on" : "") + '"' +
+             ' data-axis="' + App.util.esc(a.key) + '"' +
+             ' aria-pressed="' + (on ? "true" : "false") + '"' + style + '>' +
+             App.util.esc(a.label) + '</button>';
+    }).join("");
+    var hint = overlay ? "" :
+      '<div class="axis-hint">' + App.util.esc(axisDef(activeKey).hint || "") + '</div>';
+    return '<div class="axis-switch">' +
+             '<div class="axis-btns">' + btns + '</div>' +
+             '<label class="axis-overlay"><input type="checkbox" data-axis-overlay' +
+               (overlay ? " checked" : "") + '> 重ねて見る</label>' +
+           '</div>' +
+           (overlay ? axisLegendHtml() : "") + hint;
+  }
+
+  function axisLegendHtml(){
+    var items = axisDefs().map(function(a){
+      return '<span class="axis-legend__item">' +
+               '<i class="axis-legend__swatch" style="background:' + a.color + '"></i>' +
+               App.util.esc(a.label) +
+             '</span>';
+    }).join("");
+    return '<div class="axis-legend">' + items + '</div>';
+  }
+
+  /* 単軸の棒（未記入は点線の空枠＝0 と区別する）*/
+  function singleBarHtml(scenes, def){
+    var bars = scenes.map(function(n){
+      var t = App.util.esc(n.title || "");
+      if (isAxisNull(n, def.key)){
+        return '<div class="arc-seg is-empty" data-scene="' + App.util.esc(n.id) + '" ' +
+               'title="' + t + '（' + App.util.esc(def.label) + ' 未記入）"></div>';
+      }
+      var v = axisVal(n, def.key);
+      return '<div class="arc-seg" style="height:' + Math.max(4, v) + '%;' +
+             'background:' + def.color + '" data-scene="' + App.util.esc(n.id) + '" ' +
+             'title="' + t + '（' + App.util.esc(def.label) + ' ' + v + '）"></div>';
+    }).join("");
+    return '<div class="arc-bar">' + bars + '</div>';
+  }
+
+  /* 重ね表示：場面ごとに4本の細い棒を並べる */
+  function overlayBarHtml(scenes){
+    var defs = axisDefs();
+    var groups = scenes.map(function(n){
+      var inner = defs.map(function(a){
+        if (isAxisNull(n, a.key)){
+          return '<i class="arc-mini is-empty" title="' +
+                 App.util.esc(a.label) + ' 未記入"></i>';
+        }
+        var v = axisVal(n, a.key);
+        return '<i class="arc-mini" style="height:' + Math.max(3, v) + '%;' +
+               'background:' + a.color + '" title="' +
+               App.util.esc(a.label) + ' ' + v + '"></i>';
+      }).join("");
+      return '<div class="arc-group" data-scene="' + App.util.esc(n.id) + '" ' +
+             'title="' + App.util.esc(n.title || "") + '">' + inner + '</div>';
+    }).join("");
+    return '<div class="arc-bar arc-bar--overlay">' + groups + '</div>';
+  }
+
+  /** 軸ごとの平均（null は母数から除く）。値が1つも無ければ null */
+  function axisAverage(scenes, key){
+    var vals = scenes.filter(function(n){ return !isAxisNull(n, key); })
+                     .map(function(n){ return axisVal(n, key); });
+    if (!vals.length) return null;
+    return Math.round(vals.reduce(function(a, b){ return a + b; }, 0) / vals.length);
   }
 
   /** 極性文字列から下ラベル用の記号（+ / − / =）を導く（anatomy と同じ規則）*/
@@ -288,11 +394,19 @@
       return String(n.summary || "").trim() !== "";
     }).length;
 
-    var vals = scenes.filter(function(n){ return !isTensionNull(n); })
-                     .map(function(n){ return Number(n.tension); });
-    var avg = vals.length
-      ? Math.round(vals.reduce(function(a, b){ return a + b; }, 0) / vals.length)
-      : null;
+    // 集計は「今見ている軸」に追随させる（重ね表示のときは4軸すべて並べる）。
+    // 「なぜ」: グラフが推進なのに平均だけ緊張、では読み違える。
+    var avgText;
+    if (st.overlay){
+      avgText = axisDefs().map(function(a){
+        var v = axisAverage(scenes, a.key);
+        return "平均" + a.label + " " + (v === null ? "—" : v);
+      }).join("／");
+    } else {
+      var def = axisDef(st.axis);
+      var avg = axisAverage(scenes, def.key);
+      avgText = "平均" + def.label + " " + (avg === null ? "—" : avg);
+    }
 
     // タグ出現数を数えて上位5件（研究の関心がどこに寄っているかの見取り図）
     var counts = {};
@@ -312,10 +426,11 @@
 
     var line = '総場面数 ' + scenes.length +
                '／記入済み ' + written +
-               '／平均緊張度 ' + (avg === null ? "—" : avg);
+               '／' + avgText;
 
     return '<div class="rd-stats">' +
-             '<span class="rd-stats__line">' + line + '</span>' +
+             // 軸ラベルはデータ由来なので必ず esc を通す
+             '<span class="rd-stats__line">' + App.util.esc(line) + '</span>' +
              (top ? '<span class="rd-stats__tags">よく使うタグ：' + top + '</span>' : "") +
            '</div>';
   }

@@ -69,10 +69,108 @@
   border-radius:2px 2px 0 0;
   transition:opacity .1s;
 }
-/* tension=null は「低い灰色棒」で停滞を可視化 */
+/* tension=null は「低い灰色棒」で停滞を可視化（旧表現・互換のため残す）*/
 .arc-seg.is-null{
   background:var(--rule);
   opacity:.5;
+}
+/* 未記入（その軸を測っていない）＝点線の空枠。
+   「なぜ塗らないか」: 0（測って低い）と未記入は意味が違う。塗った低い棒だと
+   「静かな場面」と「まだ測っていない場面」が同じ見た目になり研究が濁る。 */
+.arc-seg.is-empty{
+  height:100%;
+  background:none;
+  border:1px dashed var(--rule-strong);
+  opacity:.45;
+}
+
+/* --- 軸の切替（緊張／推進／密度／情動）--- */
+/* 375px 対応: ボタンは折り返す。横スクロールは出さない */
+.axis-switch{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px 12px;
+  margin-bottom:8px;
+}
+.axis-btns{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+}
+.axis-btn{
+  font-size:12px;
+  line-height:1;
+  padding:6px 9px;
+  background:var(--paper);
+  border:1px solid var(--rule-strong);
+  color:var(--ink-soft);
+  border-radius:2px;
+  cursor:pointer;
+}
+/* 選択中は色だけでなく太字＋枠でも示す（色覚差・白黒印刷でも読める）*/
+.axis-btn.is-on{
+  font-weight:700;
+  border-width:2px;
+  background:var(--paper-2);
+}
+.axis-overlay{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  font-size:12px;
+  color:var(--ink-soft);
+  white-space:nowrap;
+}
+.axis-hint{
+  font-size:11px;
+  color:var(--ink-soft);
+  line-height:1.6;
+  margin-top:6px;
+}
+/* 重ね表示の凡例（どの色が何の軸かを必ず示す）*/
+.axis-legend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 12px;
+  font-size:11px;
+  color:var(--ink-soft);
+  margin-bottom:6px;
+}
+.axis-legend__item{ display:inline-flex; align-items:center; gap:4px; }
+.axis-legend__swatch{
+  display:inline-block;
+  width:10px;
+  height:10px;
+  border:1px solid var(--rule-strong);
+}
+
+/* 重ね表示：1場面＝4本の細い棒の束 */
+.arc-bar--overlay{ gap:4px; }
+.arc-group{
+  flex:1 1 0;
+  min-width:8px;
+  height:100%;
+  display:flex;
+  align-items:flex-end;
+  gap:1px;
+  cursor:pointer;
+}
+.arc-group.current{
+  outline:2px solid var(--ink);
+  outline-offset:1px;
+}
+.arc-mini{
+  flex:1 1 0;
+  min-width:1px;
+  border-radius:1px 1px 0 0;
+  opacity:.8;
+}
+/* 重ね表示の未記入も点線の空枠（単軸と同じ約束）*/
+.arc-mini.is-empty{
+  height:100%;
+  border:1px dashed var(--rule-strong);
+  opacity:.3;
 }
 .arc-seg.current{
   opacity:1;
@@ -236,7 +334,7 @@
 .ed-tag-add .select{ flex:1 1 auto; }
 .ed-tag-add .btn{ flex-shrink:0; }
 
-/* 緊張度スライダー行 */
+/* 緊張度スライダー行（旧・互換のため残す）*/
 .ed-tension{
   display:flex;
   align-items:center;
@@ -250,6 +348,50 @@
   text-align:right;
 }
 .ed-tension .btn{ flex-shrink:0; }
+
+/* --- 場面の軸（4本のスライダー）--- */
+/* 縦積みにするのは、375px で「ラベル＋値＋なし＋スライダー」を1行に詰めると
+   必ず溢れるため。1軸1ブロックなら幅が狭くても壊れない。 */
+.ed-axes .ed-axis{
+  border-top:1px solid var(--rule);
+  padding:8px 0 6px;
+}
+.ed-axes .ed-axis:first-of-type{ border-top:none; padding-top:2px; }
+.ed-axis__head{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:4px 8px;
+  margin-bottom:2px;
+}
+.ed-axis__label{
+  font-size:13px;
+  font-weight:700;
+  margin:0;
+  flex:0 0 auto;
+}
+.ed-axis__val{
+  font-size:13px;
+  color:var(--ink);
+  min-width:40px;
+  flex:0 0 auto;
+}
+.ed-axis__null{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  font-size:12px;
+  color:var(--ink-soft);
+  margin-left:auto;             /* 右端へ。狭い幅では折り返す */
+  white-space:nowrap;
+}
+.ed-axis input[type=range]{ width:100%; display:block; }
+.ed-axis__hint{
+  font-size:11px;
+  color:var(--ink-soft);
+  line-height:1.6;
+  margin-top:3px;
+}
 
 /* 研究記録（折りたたみ）*/
 .ed-research{

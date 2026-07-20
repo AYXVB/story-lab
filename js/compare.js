@@ -199,11 +199,15 @@
       '</div>';
 
     if (!cmpA && !cmpB){
-      html += '<p class="overline">2作を選ぶと、緊張度カーブ・基本情報・タグ構成を並べて比較できます。</p>';
+      html += '<p class="overline">2作を選ぶと、4軸のカーブ（緊張・推進・密度・情動）・各軸の平均・' +
+              '基本情報・タグ構成を並べて比較できます。</p>';
       els.cmp.innerHTML = html;
       bindCompare();
       return;
     }
+
+    // 軸の切替はA/B共通なので、カードより前に1つだけ置く
+    html += axisSwitchHtml();
 
     // タグ構成は A/B の突き合わせが要るので先に両方集計する
     var topA = cmpA ? sortedPairs(countTags(scenesInOrder(cmpA))).slice(0, TAG_TOP_N) : [];
@@ -246,29 +250,91 @@
 
     return '<div class="cmp-card card card--soft">' + head +
            curveHtml(scenes) +
+           axisAveragesHtml(scenes) +
            basicsHtml(work, scenes) +
            tagMixHtml(workId, side, mine, other) +
            '</div>';
   }
 
-  /** 緊張度カーブ（棒グラフ）。anatomy の構成バーと同じ考え方だが、
-      場面数の違う作品を並べるため各棒の横幅は flex で100%に正規化する */
+  /* ------------------------------------------------------------------
+     場面の軸（緊張・推進・密度・情動）。定義は data/scene-axes.js が真実。
+     「なぜハードコードしないか」: 軸が増えたとき比較だけ古い定義のままだと、
+     同じ棒が分解ビューと別の意味になる（研究の道具として致命的）。
+     scene-axes.js が無い環境でも従来どおり緊張だけで動くよう保険を持つ。
+     ------------------------------------------------------------------ */
+  var AXIS_FALLBACK = [{ key: "tension", label: "緊張", color: "var(--accent)" }];
+  function axisDefs(){
+    var d = (window.App && window.App.sceneAxes) || [];
+    return (d && d.length) ? d : AXIS_FALLBACK;
+  }
+  function axisDef(key){
+    var d = axisDefs();
+    for (var i = 0; i < d.length; i++){ if (d[i].key === key) return d[i]; }
+    return d[0];
+  }
+  // 表示中の軸（保存しない＝見方の一時的な好み。データではない）
+  var curAxis = (window.App && App.sceneAxisDefault) || "tension";
+
+  /** 未記入か（0＝測って低い／null＝測っていない を必ず区別する）*/
+  function isNullAxis(n, key){
+    var v = n[key];
+    return (v === null || v === undefined || v === "" || isNaN(Number(v)));
+  }
+
+  /** 軸の切替ボタン列（A/B両方のカーブに同時に効く）*/
+  function axisSwitchHtml(){
+    var btns = axisDefs().map(function(a){
+      var on = (a.key === curAxis) ? " is-on" : "";
+      return '<button type="button" class="btn btn--sm cmp-axis-btn' + on + '"' +
+             ' data-axis="' + App.util.esc(a.key) + '">' + App.util.esc(a.label) + '</button>';
+    }).join("");
+    return '<div class="cmp-axis-switch"><span class="overline">見る軸</span>' + btns + '</div>';
+  }
+
+  /** 選択中の軸のカーブ（棒グラフ）。場面数の違う作品を並べるため
+      各棒の横幅は flex で100%に正規化する */
   function curveHtml(scenes){
+    var def = axisDef(curAxis);
     var bars = "";
     scenes.forEach(function(n, i){
-      var isNull = (n.tension === null || n.tension === undefined || n.tension === "");
-      // null は低い灰色棒＝「値未設定（＝停滞に見える箇所）」を隠さず見せる
-      var h = isNull ? 8 : Math.max(4, Math.min(100, Number(n.tension) || 0));
+      var isNull = isNullAxis(n, curAxis);
+      // null は低い点線枠＝「測っていない」ことを 0 と区別して見せる
+      var h = isNull ? 8 : Math.max(4, Math.min(100, Number(n[curAxis])));
       var t = (i + 1) + ". " + (n.title || "（無題）") +
-              (isNull ? "（緊張度なし）" : "（" + h + "）");
+              (isNull ? "（" + def.label + "の記入なし）" : "（" + def.label + h + "）");
       bars += '<div class="cmp-seg' + (isNull ? " is-null" : "") + '"' +
-              ' style="height:' + h + '%"' +
+              ' style="height:' + h + '%' + (isNull ? '' : ';background:' + def.color) + '"' +
               ' data-node-id="' + App.util.esc(n.id) + '"' +
               ' title="' + App.util.esc(t) + '"></div>';
     });
     return '<div class="cmp-curve">' +
-             '<div class="cmp-sub">緊張度カーブ（全' + scenes.length + '場面／棒をタップすると分解へ）</div>' +
+             '<div class="cmp-sub">' + App.util.esc(def.label) +
+               'のカーブ（全' + scenes.length + '場面／棒をタップすると分解へ）</div>' +
              '<div class="cmp-bar">' + bars + '</div>' +
+           '</div>';
+  }
+
+  /** 4軸の平均値（作品の"体質"が一目で分かる。多軸化の主目的）。
+      null は母数から除く＝測っていない場面に引きずられない */
+  function axisAveragesHtml(scenes){
+    var rows = axisDefs().map(function(a){
+      var vals = scenes.filter(function(n){ return !isNullAxis(n, a.key); })
+                       .map(function(n){ return Number(n[a.key]); });
+      if (!vals.length){
+        return '<div class="cmp-avg-row"><span class="cmp-avg-label">' +
+               App.util.esc(a.label) + '</span><span class="cmp-avg-none">未記入</span></div>';
+      }
+      var avg = Math.round(vals.reduce(function(s, x){ return s + x; }, 0) / vals.length);
+      return '<div class="cmp-avg-row">' +
+               '<span class="cmp-avg-label">' + App.util.esc(a.label) + '</span>' +
+               '<span class="cmp-avg-bar"><span style="width:' + avg + '%;background:' +
+                 a.color + '"></span></span>' +
+               '<span class="cmp-avg-num">' + avg + '</span>' +
+               '<span class="cmp-avg-n">(' + vals.length + '場面)</span>' +
+             '</div>';
+    }).join("");
+    return '<div class="cmp-averages">' +
+             '<div class="cmp-sub">各軸の平均（作品の体質）</div>' + rows +
            '</div>';
   }
 
@@ -342,6 +408,13 @@
   /** 棒タップ→その場面を分解ビューで開く（ビュー間連携の契約どおり
       currentWorkId/currentNodeId を立ててから showView する）*/
   function onCompareClick(ev){
+    // 軸の切替（A/B両方のカーブに同時に効く。棒の判定より先に処理する）
+    var ab = ev.target.closest ? ev.target.closest(".cmp-axis-btn[data-axis]") : null;
+    if (ab){
+      curAxis = ab.getAttribute("data-axis");
+      renderCompare();
+      return;
+    }
     var seg = ev.target.closest ? ev.target.closest(".cmp-seg[data-node-id]") : null;
     if (!seg) return;
     jumpToNode(seg.getAttribute("data-node-id"));

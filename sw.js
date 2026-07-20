@@ -9,7 +9,7 @@
    ========================================================================== */
 
 // 更新のたびに版を上げる（古い殻を確実に捨てさせるため）。
-var CACHE_NAME = "monogatari-shell-v2_3_0";
+var CACHE_NAME = "monogatari-shell-v2_4_0";
 
 // アプリの殻＝全て自前のファイル（外部CDN無しの設計がここで効く）
 var SHELL = [
@@ -21,7 +21,7 @@ var SHELL = [
   "css/tags.css", "css/essays.css", "css/writing.css", "css/people.css",
   "css/quotes.css", "css/compare.css", "css/read.css",
   "js/store.js", "js/app.js",
-  "js/data/tags-seed.js", "js/data/works-guide.js",
+  "js/data/tags-seed.js", "js/data/works-guide.js", "js/data/scene-axes.js",
   "js/library.js", "js/anatomy.js", "js/tags.js", "js/essays.js",
   "js/writing.js", "js/people.js", "js/quotes.js", "js/compare.js",
   "js/read.js"

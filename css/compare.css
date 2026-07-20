@@ -6,6 +6,39 @@
    ★方針: 375px幅で横スクロールを出さない＝A/B は常に縦積み、幅は%指定。
    ========================================================================== */
 
+/* --- 軸の切替（緊張・推進・密度・情動）。A/B両方のカーブに同時に効く --- */
+.view-compare .cmp-axis-switch{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  margin:10px 0 6px;
+}
+.view-compare .cmp-axis-btn.is-on{
+  /* 選択中は反転。色ではなく明暗で示す＝色覚に依存しない（設計の方針） */
+  background:var(--ink); color:var(--paper); border-color:var(--ink);
+}
+
+/* --- 各軸の平均（作品の"体質"）。多軸化の主目的がここに出る --- */
+.view-compare .cmp-averages{ margin:10px 0 4px; }
+.view-compare .cmp-avg-row{
+  display:flex; align-items:center; gap:8px;
+  margin:4px 0; font-size:13px;
+}
+.view-compare .cmp-avg-label{ flex:0 0 3.2em; }
+.view-compare .cmp-avg-bar{
+  flex:1 1 auto; min-width:0;      /* 375pxで溢れないための要 */
+  height:10px; background:var(--paper-2);
+  border:1px solid var(--rule); border-radius:2px; overflow:hidden;
+}
+.view-compare .cmp-avg-bar > span{ display:block; height:100%; }
+.view-compare .cmp-avg-num{ flex:0 0 2.4em; text-align:right; font-weight:700; }
+.view-compare .cmp-avg-n{ flex:0 0 auto; color:var(--ink-soft); font-size:11px; }
+.view-compare .cmp-avg-none{ color:var(--ink-soft); font-size:12px; }
+
+/* 未記入の棒は点線枠で「0」と区別する（測っていない≠低い） */
+.view-compare .cmp-seg.is-null{
+  background:transparent;
+  border:1px dashed var(--rule-strong);
+}
+
 /* --- 作品セレクタ行（A/B・モチーフ共通）--- */
 .view-compare .cmp-pickers{
   display:flex;
